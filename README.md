@@ -6,6 +6,8 @@ A cross-platform desktop app for the [pi coding agent](https://pi.dev) — the f
 
 ![screenshot](pi-desktop.png)
 
+Vibe coding with [pi coding agent](https://pi.dev) + [Qwen3.8-27B](https://huggingface.co/Qwen/Qwen3.8-27B)
+
 ## Documentation
 
 | 文档 | 内容 |

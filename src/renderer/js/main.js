@@ -765,6 +765,25 @@ async function invokeSafe(channel, params) {
 
 // ---------------------------------------------------------------- commands
 
+/** Custom provider (global models.json) editor. Shared by /providers and Settings. */
+async function openProvidersUI() {
+	const cfg = (await invokeSafe("models.config.read", {})) ?? { path: "", providers: {} };
+	if (cfg.error) toast(cfg.error, "warning");
+	modals.openProviderConfig({
+		path: cfg.path ?? "",
+		providers: cfg.providers ?? {},
+		onSave: async (providers) => {
+			const res = await invokeSafe("models.config.save", { providers });
+			if (res?.error) {
+				toast(res.error, "error");
+				return false;
+			}
+			toast(t("app.providersSaved", { path: res.path ?? cfg.path }), "success");
+			return true;
+		},
+	});
+}
+
 async function runCommand(line) {
 	const parsed = parseSlashCommand(line);
 	if (!parsed) return false;
@@ -914,6 +933,7 @@ async function runCommand(line) {
 				},
 				onLanguageChange: (lang) => void changeLanguage(lang),
 				appVersion: appInfo.appVersion,
+				onEditProviders: () => void openProvidersUI(),
 			});
 			return true;
 		}
@@ -1067,6 +1087,10 @@ async function runCommand(line) {
 				diagnostics: snap?.diagnostics,
 				stats: snap?.stats,
 			});
+			return true;
+		}
+		case "/providers": {
+			await openProvidersUI();
 			return true;
 		}
 		case "/scoped-models": {

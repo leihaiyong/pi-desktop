@@ -18,6 +18,7 @@ import {
 import { shellConfigForPlatform } from "./platform.js";
 import { groupWorkspaces } from "../shared/workspaces.js";
 import { isValidRect, clampCrop } from "../shared/snip.js";
+import { parseModelsJson, serializeModelsJson } from "../shared/model-config.js";
 
 // Mirrors the SDK's getDefaultSessionDirPath encoding (the function is not
 // exported from the package entry): <agentDir>/sessions/--<cwd, / \ : -> ->--
@@ -87,6 +88,8 @@ const IPC_CHANNELS = new Set([
 	"models.logout",
 	"models.apiKey.set",
 	"models.apiKey.remove",
+	"models.config.read",
+	"models.config.save",
 	"resources.changelog",
 	"resources.get",
 	"theme.list",
@@ -837,6 +840,30 @@ export class AgentHost {
 				await mr.removeRuntimeApiKey(params.providerId);
 				await this.#afterAuthChange();
 				return { ok: true };
+
+			// --- custom providers (global models.json) ---
+			case "models.config.read": {
+				const p = path.join(getAgentDir(), "models.json");
+				let text = "";
+				try {
+					text = fs.readFileSync(p, "utf8");
+				} catch {
+					// file does not exist yet
+				}
+				const parsed = parseModelsJson(text);
+				return { path: p, providers: parsed.providers, error: parsed.error };
+			}
+			case "models.config.save": {
+				const providers = params.providers;
+				if (!providers || typeof providers !== "object" || Array.isArray(providers)) {
+					throw new Error(t("host.providersInvalid"));
+				}
+				const p = path.join(getAgentDir(), "models.json");
+				fs.mkdirSync(path.dirname(p), { recursive: true });
+				fs.writeFileSync(p, serializeModelsJson(providers), "utf8");
+				await this.#afterAuthChange();
+				return { ok: true, path: p };
+			}
 
 			// --- misc host ---
 			case "resources.changelog": {

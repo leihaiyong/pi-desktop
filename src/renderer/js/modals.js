@@ -3,6 +3,7 @@ import { formatTimestamp, formatTokens } from "../../shared/format.js";
 import { flattenTree } from "../../shared/tree.js";
 import { comboLabel } from "../../shared/keys.js";
 import { t, tCmd, SUPPORTED_LANGUAGES } from "../../shared/i18n.js";
+import { upsertProvider, removeProvider, stripUndefined, updateCostFields } from "../../shared/model-config.js";
 
 /**
  * Modal framework + all TUI selector dialogs, re-implemented as web modals.
@@ -83,7 +84,7 @@ function openModal({
 		}
 		visible.forEach((it, i) => {
 			const row = document.createElement("div");
-			row.className = "modal-item" + (i === selected ? " selected" : "");
+			row.className = "modal-item" + (it.cls ? ` ${it.cls}` : "") + (i === selected ? " selected" : "");
 			row.innerHTML = `<span class="mi-main"></span><span class="mi-sub"></span><span class="mi-check"></span>`;
 			row.querySelector(".mi-main").textContent = it.label;
 			row.querySelector(".mi-sub").textContent = it.sub ?? "";
@@ -232,7 +233,7 @@ export function openConfirmDialog({ title, message, confirmLabel = t("modal.conf
 				body.innerHTML = `
 					<p style="white-space:pre-wrap">${escapeHtml(message)}</p>
 					<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
-						button class="btn-cancel" style="background:var(--bg-alt);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 14px;cursor:pointer">${escapeHtml(t("modal.cancel"))}</button>
+						<button class="btn-cancel" style="background:var(--bg-alt);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 14px;cursor:pointer">${escapeHtml(t("modal.cancel"))}</button>
 						<button class="btn-ok" style="background:var(--accent);border:1px solid var(--accent);color:#fff;border-radius:6px;padding:6px 14px;cursor:pointer">${escapeHtml(confirmLabel)}</button>
 					</div>`;
 				body.querySelector(".btn-ok").addEventListener("click", () => {
@@ -459,6 +460,7 @@ export function openSettings({
 	onToolsChange,
 	onLanguageChange,
 	appVersion,
+	onEditProviders,
 }) {
 	openModal({
 		title: t("settings.title"),
@@ -500,6 +502,11 @@ export function openSettings({
 			};
 
 			section(t("settings.models"));
+			const providersBtn = document.createElement("button");
+			providersBtn.textContent = t("modal.edit");
+			providersBtn.style.cssText = "background:var(--bg-alt);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 14px;cursor:pointer";
+			providersBtn.addEventListener("click", () => onEditProviders?.());
+			row(t("settings.providers"), providersBtn);
 			row(
 				t("settings.defaultThinking"),
 				select(
@@ -727,10 +734,18 @@ export function openScopedModelsSelector({ models, current = [], onSave }) {
 }
 
 export function openLoginSelector({ providers, authStatus, onLogin, onApiKey, onLogout }) {
+	// models.authStatus may carry either the SDK AuthStatus object
+	// ({configured, source?, label?}) or a plain fallback string
+	const statusText = (st) => {
+		if (st == null) return "?";
+		if (typeof st === "string") return st;
+		if (!st.configured) return t("auth.statusNotConfigured");
+		return st.label ?? st.source ?? t("auth.statusConfigured");
+	};
 	const statusById = new Map(authStatus?.providers.map((p) => [p.id, p.status]));
 	const items = providers.map((p) => ({
 		label: p.name,
-		sub: `${p.id} · ${p.auth.join(" / ") || t("modal.noAuthMethod")} · ${t("modal.statusLabel", { value: statusById.get(p.id) ?? "?" })}`,
+		sub: `${p.id} · ${p.auth.join(" / ") || t("modal.noAuthMethod")} · ${t("modal.statusLabel", { value: statusText(statusById.get(p.id)) })}`,
 		data: p,
 	}));
 	openModal({
@@ -763,6 +778,327 @@ export function openLoginSelector({ providers, authStatus, onLogin, onApiKey, on
 			closeTop();
 		},
 	});
+}
+
+// ------------------------------------------------- custom providers (models.json)
+
+const PROVIDER_APIS = ["openai-completions", "openai-responses", "anthropic-messages", "google-generative-ai", "mistral-conversations", "pi-messages"];
+
+const FORM_INPUT_CSS = "width:100%;font-size:calc(13px * var(--fs, 1.1429));padding:6px 10px;background:var(--bg-alt);border:1px solid var(--border);color:var(--fg);border-radius:6px;box-sizing:border-box";
+const FORM_BTN_CSS = "background:var(--bg-alt);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 14px;cursor:pointer";
+const FORM_BTN_PRIMARY_CSS = "background:var(--accent);border:1px solid var(--accent);color:#fff;border-radius:6px;padding:6px 14px;cursor:pointer";
+
+function providerFormRow(body, label, control) {
+	const div = document.createElement("div");
+	div.className = "setting-row";
+	const span = document.createElement("span");
+	span.textContent = label;
+	span.style.minWidth = "150px";
+	div.append(span, control);
+	body.appendChild(div);
+	return control;
+}
+
+function providerFormTextInput(value = "") {
+	const el = document.createElement("input");
+	el.type = "text";
+	el.value = value;
+	el.style.cssText = FORM_INPUT_CSS;
+	return el;
+}
+
+function providerFormButton(text, primary = false) {
+	const b = document.createElement("button");
+	b.textContent = text;
+	b.style.cssText = primary ? FORM_BTN_PRIMARY_CSS : FORM_BTN_CSS;
+	return b;
+}
+
+/** List of custom providers in the global models.json + entry to add new ones. */
+export function openProviderConfig({ path, providers, onSave }) {
+	const entries = Object.entries(providers);
+	const items = [
+		{ label: t("modal.addProvider"), cls: "mi-add", data: { __new: true } },
+		...entries.map(([id, p]) => ({
+			label: p.name ?? id,
+			sub: `${id}${p.api ? ` · ${p.api}` : ""}${p.baseUrl ? ` · ${p.baseUrl}` : ""} · ${t("modal.providerModels", { n: p.models?.length ?? 0 })}`,
+			data: { id },
+		})),
+	];
+	openModal({
+		title: t("modal.providersTitle"),
+		searchable: true,
+		items,
+		footer: path,
+		onSelect: (item) => {
+			openProviderEditor({ path, providers, providerId: item.data.__new ? undefined : item.data.id, onSave });
+			return false;
+		},
+	});
+}
+
+/** Edit (or create) one provider + its model list. The provider form and the
+ * model form swap in place inside a single modal, so typed values survive
+ * round-trips and confirmation dialogs. */
+function openProviderEditor({ path, providers, providerId, onSave }) {
+	const existing = providerId && providers[providerId] ? providers[providerId] : {};
+	const state = {
+		id: providerId && providers[providerId] ? providerId : "",
+		api: existing.api ?? "",
+		baseUrl: existing.baseUrl ?? "",
+		apiKey: existing.apiKey ?? "",
+		headers: existing.headers ? JSON.stringify(existing.headers, null, 2) : "",
+		authHeader: existing.authHeader ?? true,
+		models: (existing.models ?? []).slice(),
+	};
+	let bodyEl;
+	let footerLeftEl;
+	let flashTimer;
+	let view = "init"; // "init" | "provider" | "model"
+	// Pull the live provider-form inputs back into state so values typed in
+	// the form survive view swaps (e.g. round-trips into the model editor).
+	const collectProviderForm = () => {
+		const t = [...bodyEl.querySelectorAll("input[type='text']")];
+		if (t.length !== 5) return;
+		state.id = t[0].value;
+		state.api = t[1].value;
+		state.baseUrl = t[2].value;
+		state.apiKey = t[3].value;
+		state.headers = t[4].value;
+		const chk = [...bodyEl.querySelectorAll("input[type='checkbox']")];
+		state.authHeader = chk[0]?.checked ?? true;
+	};
+	const flash = (msg) => {
+		if (!footerLeftEl) return;
+		footerLeftEl.textContent = msg;
+		clearTimeout(flashTimer);
+		flashTimer = setTimeout(() => (footerLeftEl.textContent = ""), 4000);
+	};
+	const backTo = (nextProviders) => openProviderConfig({ path, providers: nextProviders, onSave });
+
+	const renderProviderView = () => {
+		if (view === "provider") collectProviderForm();
+		view = "provider";
+		bodyEl.innerHTML = "";
+		const idInput = providerFormRow(bodyEl, t("modal.fieldProviderId"), providerFormTextInput(state.id));
+		const apiInput = providerFormRow(bodyEl, t("modal.fieldApi"), providerFormTextInput(state.api));
+		const apiList = document.createElement("datalist");
+		apiList.id = "provider-apis";
+		for (const a of PROVIDER_APIS) {
+			const o = document.createElement("option");
+			o.value = a;
+			apiList.appendChild(o);
+		}
+		apiInput.setAttribute("list", "provider-apis");
+		bodyEl.appendChild(apiList);
+		const baseUrlInput = providerFormRow(bodyEl, t("modal.fieldBaseUrl"), providerFormTextInput(state.baseUrl));
+		const apiKeyInput = providerFormRow(bodyEl, t("modal.fieldApiKey"), providerFormTextInput(state.apiKey));
+		const headersInput = providerFormRow(bodyEl, t("modal.fieldHeaders"), providerFormTextInput(state.headers));
+		headersInput.placeholder = "{}";
+		const authRow = document.createElement("div");
+		authRow.className = "setting-row";
+		const authLabel = document.createElement("span");
+		authLabel.textContent = t("modal.fieldAuthHeader");
+		authLabel.style.minWidth = "150px";
+		const authChk = document.createElement("input");
+		authChk.type = "checkbox";
+		authChk.checked = state.authHeader;
+		authRow.append(authLabel, authChk);
+		bodyEl.appendChild(authRow);
+
+		const sec = document.createElement("div");
+		sec.className = "section-title";
+		sec.textContent = t("modal.modelsSection");
+		bodyEl.appendChild(sec);
+		const modelsEl = document.createElement("div");
+		modelsEl.style.display = "flex";
+		modelsEl.style.flexDirection = "column";
+		modelsEl.style.gap = "6px";
+		bodyEl.appendChild(modelsEl);
+
+		for (const m of state.models) {
+			const row = document.createElement("div");
+			row.className = "setting-row";
+			const label = document.createElement("span");
+			label.textContent = `${m.id}${m.name ? ` · ${m.name}` : ""}${m.contextWindow ? ` · ${formatTokens(m.contextWindow)} ctx` : ""}`;
+			row.appendChild(label);
+			const editBtn = providerFormButton(t("modal.edit"));
+			editBtn.addEventListener("click", () => renderModelView(m));
+			const delBtn = providerFormButton("✕");
+			delBtn.title = t("modal.deleteModel");
+			delBtn.addEventListener("click", async () => {
+				const ok = await openConfirmDialog({ title: t("modal.deleteModel"), message: t("modal.deleteModelQ", { id: m.id }) });
+				if (ok) state.models = state.models.filter((x) => x.id !== m.id);
+				show(); // the confirm dialog closed this modal; re-open the editor
+			});
+			row.append(editBtn, delBtn);
+			modelsEl.appendChild(row);
+		}
+		const addModelBtn = providerFormButton(t("modal.addModel"));
+		addModelBtn.style.alignSelf = "flex-start";
+		addModelBtn.addEventListener("click", () => renderModelView(undefined));
+		modelsEl.appendChild(addModelBtn);
+
+		const btns = document.createElement("div");
+		btns.style.display = "flex";
+		btns.style.gap = "8px";
+		btns.style.justifyContent = "flex-end";
+		btns.style.marginTop = "12px";
+		if (state.id) {
+			const delProviderBtn = providerFormButton(t("modal.deleteProvider"));
+			delProviderBtn.style.marginRight = "auto";
+			delProviderBtn.addEventListener("click", async () => {
+				const ok = await openConfirmDialog({ title: t("modal.deleteProvider"), message: t("modal.deleteProviderQ", { id: state.id }) });
+				if (!ok) {
+					show();
+					return;
+				}
+				const next = removeProvider(providers, state.id);
+				if ((await onSave(next)) !== false) backTo(next);
+				else show();
+			});
+			btns.appendChild(delProviderBtn);
+		}
+		const backBtn = providerFormButton(t("modal.back"));
+		backBtn.addEventListener("click", () => backTo(providers));
+		const saveBtn = providerFormButton(t("modal.save"), true);
+		saveBtn.addEventListener("click", async () => {
+			const id = idInput.value.trim();
+			if (!id) return flash(t("modal.idRequired"));
+			let headers;
+			const hRaw = headersInput.value.trim();
+			if (hRaw) {
+				try {
+					headers = JSON.parse(hRaw);
+					if (!headers || typeof headers !== "object" || Array.isArray(headers)) throw new Error("not an object");
+				} catch {
+					return flash(t("modal.headersInvalid"));
+				}
+			} else {
+				headers = undefined;
+			}
+			const draft = {
+				api: apiInput.value.trim() || undefined,
+				baseUrl: baseUrlInput.value.trim() || undefined,
+				apiKey: apiKeyInput.value.trim() || undefined,
+				headers,
+				authHeader: authChk.checked,
+				models: state.models,
+			};
+			let next;
+			if (state.id && state.id !== id) {
+				if (providers[id] !== undefined) return flash(t("modal.idTaken", { id }));
+				next = upsertProvider(removeProvider(providers, state.id), id, draft);
+			} else {
+				next = upsertProvider(providers, id, draft);
+			}
+			if ((await onSave(next)) !== false) backTo(next);
+		});
+		btns.append(backBtn, saveBtn);
+		bodyEl.appendChild(btns);
+	};
+
+	const renderModelView = (model) => {
+		if (view === "provider") collectProviderForm();
+		view = "model";
+		bodyEl.innerHTML = "";
+		const idInput = providerFormRow(bodyEl, t("modal.fieldModelId"), providerFormTextInput(model?.id ?? ""));
+		const nameInput = providerFormRow(bodyEl, t("modal.fieldName"), providerFormTextInput(model?.name ?? ""));
+		const ctxInput = providerFormRow(bodyEl, t("modal.fieldContextWindow"), providerFormTextInput(String(model?.contextWindow ?? "")));
+		const maxInput = providerFormRow(bodyEl, t("modal.fieldMaxTokens"), providerFormTextInput(String(model?.maxTokens ?? "")));
+		const costInInput = providerFormRow(bodyEl, t("modal.fieldCostInput"), providerFormTextInput(String(model?.cost?.input ?? "")));
+		const costOutInput = providerFormRow(bodyEl, t("modal.fieldCostOutput"), providerFormTextInput(String(model?.cost?.output ?? "")));
+
+		const flagRow = (label, initial) => {
+			const row = document.createElement("div");
+			row.className = "setting-row";
+			const span = document.createElement("span");
+			span.textContent = label;
+			span.style.minWidth = "150px";
+			const chk = document.createElement("input");
+			chk.type = "checkbox";
+			chk.checked = initial;
+			row.append(span, chk);
+			bodyEl.appendChild(row);
+			return chk;
+		};
+		const reasoningChk = flagRow(t("modal.fieldReasoning"), model?.reasoning ?? false);
+		const inputTypesRow = document.createElement("div");
+		inputTypesRow.className = "setting-row";
+		const itLabel = document.createElement("span");
+		itLabel.textContent = t("modal.fieldInputTypes");
+		itLabel.style.minWidth = "150px";
+		const mkChk = (label, checked) => {
+			const wrap = document.createElement("label");
+			wrap.style.cssText = "display:inline-flex;align-items:center;gap:5px;margin-right:14px;cursor:pointer;";
+			const chk = document.createElement("input");
+			chk.type = "checkbox";
+			chk.checked = checked;
+			wrap.append(chk, document.createTextNode(label));
+			return wrap;
+		};
+		const textChk = mkChk("text", !model || (model.input ?? ["text"]).includes("text"));
+		const imageChk = mkChk("image", !!model?.input?.includes("image"));
+		inputTypesRow.append(itLabel, textChk, imageChk);
+		bodyEl.appendChild(inputTypesRow);
+
+		const num = (v) => {
+			const s = v.trim();
+			if (!s) return undefined;
+			const n = Number(s);
+			return Number.isFinite(n) && n > 0 ? n : undefined;
+		};
+		const btns = document.createElement("div");
+		btns.style.display = "flex";
+		btns.style.gap = "8px";
+		btns.style.justifyContent = "flex-end";
+		btns.style.marginTop = "12px";
+		const cancelBtn = providerFormButton(t("modal.back"));
+		cancelBtn.addEventListener("click", () => renderProviderView());
+		const saveBtn = providerFormButton(t("modal.save"), true);
+		saveBtn.addEventListener("click", () => {
+			const id = idInput.value.trim();
+			if (!id) return flash(t("modal.idRequired"));
+			const inputs = [];
+			if (textChk.querySelector("input").checked) inputs.push("text");
+			if (imageChk.querySelector("input").checked) inputs.push("image");
+			if (inputs.length === 0) return flash(t("modal.inputNone"));
+			const costBad = (v) => {
+				const s = v.trim();
+				return s !== "" && !(Number.isFinite(Number(s)) && Number(s) >= 0);
+			};
+			if (costBad(costInInput.value) || costBad(costOutInput.value)) return flash(t("modal.costInvalid"));
+			const draft = {
+				id,
+				name: nameInput.value.trim() || undefined,
+				contextWindow: num(ctxInput.value),
+				maxTokens: num(maxInput.value),
+				reasoning: reasoningChk.checked || undefined,
+				input: inputs,
+				cost: updateCostFields(model?.cost, costInInput.value, costOutInput.value),
+			};
+			const i = state.models.findIndex((x) => x.id === id);
+			if (i >= 0) state.models[i] = { ...state.models[i], ...stripUndefined(draft) };
+			else state.models.push(draft);
+			renderProviderView();
+		});
+		btns.append(cancelBtn, saveBtn);
+		bodyEl.appendChild(btns);
+	};
+
+	const show = () => {
+		openModal({
+			title: state.id ? t("modal.providerEdit", { id: state.id }) : t("modal.providerNew"),
+			width: "wide",
+			footer: path,
+			renderBody: (body, { footerEl }) => {
+				bodyEl = body;
+				footerLeftEl = footerEl.querySelector(".mf-left");
+				renderProviderView();
+			},
+		});
+	};
+	show();
 }
 
 export function openHotkeysModal({ bindings, platform }) {

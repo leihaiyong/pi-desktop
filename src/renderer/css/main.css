@@ -891,6 +891,12 @@ body {
 	color: var(--success);
 }
 
+/* the "+ New provider" entry: no sub-line, centered text */
+.modal-item.mi-add .mi-main {
+	flex: 1;
+	text-align: center;
+}
+
 .modal-footer {
 	padding: 8px 16px 12px;
 	font-size: calc(11px * var(--fs, 1.1429));

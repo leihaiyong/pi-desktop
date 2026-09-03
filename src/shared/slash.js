@@ -29,6 +29,7 @@ export const BUILTIN_COMMANDS = [
 	{ name: "/reload", description: "Reload extensions, skills, prompts, themes, context files" },
 	{ name: "/debug", description: "Show system prompt and loaded resources" },
 	{ name: "/scoped-models", description: "Configure the Ctrl+P model cycle list" },
+	{ name: "/providers", description: "Custom providers (edit global models.json)" },
 	{ name: "/arminsayshi", description: "Easter egg" },
 	{ name: "/dementedelves", description: "Easter egg" },
 	{ name: "/quit", description: "Quit Pi Desktop" },

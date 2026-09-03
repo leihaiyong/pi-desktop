@@ -1,0 +1,52 @@
+appId: dev.pi.desktop
+productName: Pi Desktop
+copyright: Copyright © 2026 pi contributors
+directories:
+  output: release
+  buildResources: build
+files:
+  - "src/**/*"
+  - "package.json"
+  - "node_modules/**/*"
+  - "!node_modules/**/test/**"
+  - "!node_modules/**/tests/**"
+  - "!node_modules/**/docs/**"
+  - "!node_modules/**/*.md"
+# pi packages are pure JS and load fine from asar; the @earendil-works/*
+# packages are junctions to the local pi monorepo, which asar unpack cannot
+# handle (files must live under the project root).
+win:
+  target:
+    - nsis
+    - portable
+  icon: build/icon.ico
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.developer-tools
+  icon: build/icon.icns
+dmg:
+  title: Pi Desktop
+linux:
+  target:
+    - AppImage
+    - deb
+    - rpm
+  category: Development
+  icon: build
+  artifactName: ${name}-${version}-${arch}.${ext}
+deb:
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libasound2
+portable:
+  artifactName: ${name}-${version}-portable.${ext}
+publish: null

@@ -1,0 +1,74 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; script-src 'self'; style-src 'unsafe-inline'" />
+		<style>
+			html,
+			body {
+				margin: 0;
+				padding: 0;
+				width: 100%;
+				height: 100%;
+				overflow: hidden;
+				background: transparent;
+			}
+			#stage {
+				position: fixed;
+				inset: 0;
+				cursor: crosshair;
+				user-select: none;
+				-webkit-user-select: none;
+			}
+			#shot {
+				position: absolute;
+				inset: 0;
+				width: 100%;
+				height: 100%;
+				display: block;
+				pointer-events: none;
+			}
+			#sel {
+				position: absolute;
+				display: none;
+				border: 1px solid #fff;
+				/* dim everything outside the selection */
+				box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.55);
+				pointer-events: none;
+			}
+			#sel-label {
+				position: absolute;
+				display: none;
+				background: rgba(0, 0, 0, 0.8);
+				color: #fff;
+				font: 12px Consolas, monospace;
+				padding: 1px 7px;
+				border-radius: 4px;
+				white-space: nowrap;
+				pointer-events: none;
+			}
+			#hint {
+				position: fixed;
+				top: 14px;
+				left: 50%;
+				transform: translateX(-50%);
+				background: rgba(0, 0, 0, 0.75);
+				color: #fff;
+				font: 13px system-ui, sans-serif;
+				padding: 6px 14px;
+				border-radius: 6px;
+				pointer-events: none;
+				white-space: nowrap;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="stage">
+			<img id="shot" alt="" draggable="false" />
+			<div id="sel"></div>
+		</div>
+		<div id="sel-label"></div>
+		<div id="hint" data-i18n="snap.dragHint">Drag to select a region · Enter confirm · Esc cancel</div>
+		<script type="module" src="./js/snip.js"></script>
+	</body>
+</html>

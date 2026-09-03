@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<meta
+			http-equiv="Content-Security-Policy"
+			content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file:; font-src 'self' data:; connect-src 'self' data: blob:"
+		>
+		<title>Pi Desktop</title>
+		<link rel="stylesheet" href="./css/main.css" />
+	</head>
+	<body>
+		<div id="app">
+			<header id="titlebar">
+				<div class="tb-left">
+					<span class="tb-logo">π</span>
+					<span id="tb-model" class="tb-badge" title="Current model" data-i18n-title="titlebar.currentModel"></span>
+					<span id="tb-thinking" class="tb-badge tb-muted" title="Thinking level" data-i18n-title="titlebar.thinkingLevel"></span>
+				</div>
+				<div class="tb-center">
+					<span id="tb-session" class="tb-session"></span>
+					<span id="tb-cwd" class="tb-muted"></span>
+				</div>
+				<div class="tb-right">
+					<button id="tb-new" class="tb-btn" title="New session (Ctrl+N)" data-i18n-title="titlebar.newSession">＋</button>
+					<button id="tb-resume" class="tb-btn" title="Resume session…" data-i18n-title="titlebar.resume">↻</button>
+					<button id="tb-tree" class="tb-btn" title="Session tree" data-i18n-title="titlebar.sessionTree">⑂</button>
+					<button id="tb-workspaces" class="tb-btn" title="Workspaces (open / create / delete)" data-i18n-title="titlebar.workspaces">⌂</button>
+					<button id="tb-model-btn" class="tb-btn" title="Change model (Ctrl+L)" data-i18n-title="titlebar.changeModel">⇄</button>
+					<button id="tb-theme" class="tb-btn" title="Switch to dark theme">☾</button>
+					<button id="tb-font-down" class="tb-btn tb-btn-wide" title="Smaller font" data-i18n-title="titlebar.smallerFont">A−</button>
+					<button id="tb-font-up" class="tb-btn tb-btn-wide" title="Larger font" data-i18n-title="titlebar.largerFont">A+</button>
+					<button id="tb-settings" class="tb-btn" title="Settings" data-i18n-title="titlebar.settings">⚙</button>
+				</div>
+			</header>
+
+			<main id="transcript" tabindex="-1"></main>
+
+			<section id="dock">
+				<div id="pending" hidden></div>
+				<div id="status-line" hidden></div>
+				<div id="widgets-above" hidden></div>
+
+				<div id="editor-wrap">
+					<div id="attach-tray" hidden></div>
+					<div id="autocomplete" hidden></div>
+					<textarea
+						id="editor"
+						placeholder="Message pi…  (/ commands, @files, !bash, paste or capture images)"
+						data-i18n-placeholder="editor.placeholder"
+						rows="2"
+						spellcheck="false"
+					></textarea>
+					<button
+						id="btn-screenshot"
+						class="snap-fab"
+						title="Capture a screen region (Ctrl+Shift+S)"
+						data-i18n-title="titlebar.screenshot"
+						aria-label="Screenshot"
+						data-i18n-aria="titlebar.screenshotAria"
+					>
+						<svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+							<path d="M12 15.2a3.2 3.2 0 1 0 0-6.4 3.2 3.2 0 0 0 0 6.4z" />
+							<path d="M9 3 7.17 5H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2h-3.17L15 3H9z" />
+						</svg>
+					</button>
+				</div>
+
+				<div id="widgets-below" hidden></div>
+
+				<footer id="footer">
+					<div id="footer-keys" class="footer-half"></div>
+					<div id="footer-info" class="footer-half footer-info"></div>
+				</footer>
+			</section>
+		</div>
+
+		<div id="modal-root" hidden></div>
+		<div id="toast-root"></div>
+		<div id="login-root" hidden></div>
+
+		<!-- bundled by `npm run vendor:hljs` (esbuild IIFE, sets window.hljs) -->
+		<script src="./vendor/highlight.js"></script>
+		<script type="module" src="./js/main.js"></script>
+	</body>
+</html>

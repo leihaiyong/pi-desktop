@@ -284,6 +284,7 @@ function applySnapshot(snap, { quiet = false } = {}) {
 		BUILTIN_COMMANDS,
 		(snap.resources?.skills ?? []).map((s) => ({ name: s.name, description: s.description })),
 		snap.resources?.prompts ?? [],
+		snap.extensionCommands ?? [],
 	);
 
 	transcript.setMessages(snap.messages);
@@ -774,6 +775,7 @@ async function runCommand(line) {
 			modals.openHelpModal({
 				commands: BUILTIN_COMMANDS,
 				skills: snap?.resources?.skills ?? [],
+				extensions: snap?.extensionCommands ?? [],
 			});
 			return true;
 		case "/new": {

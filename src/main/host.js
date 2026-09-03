@@ -466,6 +466,10 @@ export class AgentHost {
 				reasoning: m.reasoning,
 				available: available.has(`${m.provider}/${m.id}`),
 			})),
+			extensionCommands: (session?.extensionRunner?.getRegisteredCommands?.() ?? []).map((c) => ({
+				name: c.invocationName ?? c.name,
+				description: c.description,
+			})),
 			providers: this.#modelRuntime.getProviders().map((p) => ({
 				id: p.id,
 				name: p.name,

@@ -22,6 +22,7 @@ export class Editor {
 	#commands = BUILTIN_COMMANDS;
 	#skills = [];
 	#prompts = [];
+	#extensionCommands = [];
 
 	constructor({ el, attachTray, autocomplete, onSubmit, onFollowUp, onBash }) {
 		this.#el = el;
@@ -80,10 +81,11 @@ export class Editor {
 		this.hideCompletion();
 	}
 
-	setCommands(commands, skills = [], prompts = []) {
+	setCommands(commands, skills = [], prompts = [], extensionCommands = []) {
 		this.#commands = commands;
 		this.#skills = skills;
 		this.#prompts = prompts;
+		this.#extensionCommands = extensionCommands;
 	}
 
 	async attachFile(file) {
@@ -294,6 +296,7 @@ export class Editor {
 			const all = [
 				...this.#commands.map((c) => ({ name: c.name, description: tCmd(c.name, c.description) })),
 				...this.#prompts.map((p) => ({ name: `/${p.name}`, description: p.description ?? p.source })),
+				...this.#extensionCommands.map((c) => ({ name: `/${c.name}`, description: t("cmd.extensionPrefix", { desc: c.description ?? "" }) })),
 				...this.#skills.map((s) => ({ name: `/${s.name}`, description: t("cmd.skillPrefix", { desc: s.description ?? "" }) })),
 			];
 			const matches = all.filter((c) => c.name.toLowerCase().startsWith(ctx.token.toLowerCase())).slice(0, 12);

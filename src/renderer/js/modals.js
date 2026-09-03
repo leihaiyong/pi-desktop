@@ -795,9 +795,10 @@ export function openHotkeysModal({ bindings, platform }) {
 	});
 }
 
-export function openHelpModal({ commands, skills = [] }) {
+export function openHelpModal({ commands, skills = [], extensions = [] }) {
 	const items = [
 		...commands.map((c) => ({ label: c.name, sub: tCmd(c.name, c.description), data: c })),
+		...extensions.map((c) => ({ label: `/${c.name}`, sub: t("cmd.extensionPrefix", { desc: c.description ?? "" }), data: c })),
 		...skills.map((s) => ({ label: `/${s.name}`, sub: t("cmd.skillPrefix", { desc: s.description ?? "" }), data: s })),
 	];
 	openModal({

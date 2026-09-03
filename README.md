@@ -34,7 +34,7 @@ Everything the interactive TUI does:
   /scoped-models /export /import /share /copy /name /session /changelog
   /hotkeys /fork /clone /trust /login /logout /new /compact /resume /reload
   /help /quit` (+ two easter eggs) — plus desktop additions `/theme <name>`,
-  `/debug` and `/workspaces`.
+  `/debug`, `/workspaces` and `/providers` (custom provider/model manager).
 - **Sessions** — persistence in `~/.pi/agent/sessions`, resume picker, session
   tree navigation, fork/clone at any user message, rename, session stats,
   HTML/JSONL export and JSONL import.
@@ -47,7 +47,9 @@ Everything the interactive TUI does:
   two-step confirmation (the current workspace is protected).
 - **Models & auth** — full model catalog with search (all providers + local
   llama.cpp models discovered from your pi setup), thinking levels,
-  `/login`/`/logout` provider authentication, scoped-model cycling.
+  `/login`/`/logout` provider authentication, scoped-model cycling, and a
+  custom provider/model manager (`/providers`) that edits your global
+  `~/.pi/agent/models.json`.
 - **Themes** — every built-in and custom pi theme (`~/.pi/themes/*.json`)
   rendered as a live CSS-variable palette; `/theme` or the titlebar/settings UI.
 - **Extensions & skills** — your pi extensions and skills are loaded through
@@ -100,7 +102,7 @@ they happen.
 ```sh
 npm install          # installs dependencies (electron + @earendil-works/pi-*)
 npm start            # run the app
-npm test             # vitest unit tests (104)
+npm test             # vitest unit tests (121)
 node test/smoke-host.mjs   # headless SDK wiring smoke test
 ```
 
@@ -148,9 +150,9 @@ full walkthrough.
 
 ## Tests
 
-- `npm test` — 104 unit tests (slash parsing, keybindings, diff rendering,
+- `npm test` — 121 unit tests (slash parsing, keybindings, diff rendering,
   theme resolution, tree utilities, workspace grouping, formatting,
-  markdown sanitization, IPC channel allow-list).
+  markdown sanitization, models.json helpers, IPC channel allow-list).
 - `node test/smoke-host.mjs` — headless end-to-end SDK wiring (model runtime,
   session services, runtime, prompts/skills/themes, fork, settings).
 - UI smoke: `npm start -- --smoke` with `SMOKE_PROMPT` drives a real prompt

@@ -7,37 +7,27 @@
 | 依赖 | 版本 | 说明 |
 |---|---|---|
 | Node.js | ≥ 22.19(验证于 24.x) | `engines` 约束 |
-| pi monorepo | 与 pi-desktop 同级目录 | 见下方目录布局 |
-| npm registry | 任意(国内建议 npmmirror) | Electron 二进制下载受网络影响最大 |
+| npm registry | 任意(国内建议 npmmirror) | pi SDK 包与 Electron 二进制下载受网络影响最大 |
 | 操作系统 | Windows / macOS / Linux | 打包需在目标平台执行 |
 
-### 目录布局(关键)
+### 依赖
 
-pi-desktop 通过 `file:` 链接依赖 pi monorepo 的 SDK 包,**两者必须保持
-兄弟目录关系**:
-
-```
-<root>/
-  pi/                  # pi monorepo(git clone)
-    packages/
-      ai/              # @earendil-works/pi-ai
-      coding-agent/    # @earendil-works/pi-coding-agent
-  pi-desktop/          # 本项目
-```
+pi-desktop 依赖 npm 上发布的 pi SDK 包,无额外布局要求:
 
 `pi-desktop/package.json`:
 
 ```json
 "dependencies": {
-  "@earendil-works/pi-ai": "file:../pi/packages/ai",
-  "@earendil-works/pi-coding-agent": "file:../pi/packages/coding-agent",
+  "@earendil-works/pi-ai": "^0.84.4",
+  "@earendil-works/pi-coding-agent": "^0.84.4",
   "marked": "15.0.12"
 }
 ```
 
-> 注意:pi 包自身的依赖(install 时)留在 `pi/node_modules`,
-> npm 不会提升到 pi-desktop 的 node_modules —— 打包闭包计算
-> (见 §5)已处理这一点。
+> 若你在开发 pi 本身,想跑 pi-desktop 对 monorepo 内的构建,可把上面两个
+> 依赖改为 `file:` 链接(保持兄弟目录 `<root>/pi/` + `<root>/pi-desktop/`)。
+> 此模式下 pi 包自身依赖留在 `pi/node_modules`(npm 不提升 `file:` 链接
+> 包的依赖),`scripts/repack-asar.mjs` 会合并两棵树计算闭包(见 §5)。
 
 ## 2. 开发安装
 
@@ -48,22 +38,18 @@ cd pi-desktop
 npm config set registry https://registry.npmmirror.com
 npm config set electron_mirror https://npmmirror.com/mirrors/electron/
 
-npm install            # electron、esbuild、vitest + file: 链接 pi 包
+npm install            # electron、esbuild、vitest + @earendil-works/pi-*
 
 # 若 highlight.js 依赖有变动,重新生成浏览器 bundle
 npm run vendor:hljs    # esbuild → src/renderer/vendor/highlight.js
 ```
-
-`npm install` 会创建两个 junction(Windows)/ symlink:
-`pi-desktop/node_modules/@earendil-works/pi-ai` 与 `pi-coding-agent`
-指向 monorepo 包目录。
 
 ## 3. 运行与测试
 
 ```sh
 npm start              # 启动应用
 npm run dev            # 同 start,renderer console 转发到终端
-npm test               # vitest,81 个单测
+npm test               # vitest,104 个单测
 node test/smoke-host.mjs   # 无头 SDK 冒烟(真实运行时,不启动 Electron)
 ```
 
@@ -119,15 +105,15 @@ npm run package:dir    # 只产 release/win-unpacked(或 mac/linux-unpacked)目�
 `node_modules` 整树打入 asar,但其中:
 
 - **electron 运行时包本身**(200 MB+)是 devDependency,不在闭包内;
-- 闭包 = 从 pi-desktop runtime dependencies 出发、跨
-  `pi-desktop/node_modules` 与 `pi/node_modules` 两棵树 BFS 的
-  `dependencies` 图(约 140 包);
+- 闭包 = 从 pi-desktop runtime dependencies 出发的 `dependencies` 图
+  (标准 registry 安装为单棵 `pi-desktop/node_modules` 树,约 140 包;
+  `file:` monorepo 链接时由 repack 脚本跨两棵树 BFS);
 - `highlight.js` 是 devDependency(仅 `vendor:hljs` 用),
   浏览器 bundle 在 `src/renderer/vendor/`,随 `src/**` 打包。
 
 ## 5. Windows 非管理员环境的替代打包流程
 
-本机(Windows,非管理员、未开开发者模式)上,electron-builder 能完成
+Windows 非管理员且未开开发者模式时,electron-builder 能完成
 除最后签名步骤外的全部工作:`winCodeSign` 资源包内含符号链接,
 解压需要 `SeCreateSymbolicLinkPrivilege`。绕过方式:
 
@@ -136,10 +122,13 @@ npm run package:dir    # 产出 release/win-unpacked(可运行,asar 为占位)
 npm run repack:asar    # 重建 resources/app.asar(81 MB,~10.8k 文件)
 ```
 
-`scripts/repack-asar.mjs` 做的事:
+脚本接受可选参数 `node scripts/repack-asar.mjs [root] [pi-mono-root]
+[dest-asar]`,默认当前目录、兄弟 `pi/` 目录与
+`release/win-unpacked/resources/app.asar`(registry 安装时无 `pi/` 目录,
+自动跳过)。它做的事:
 
 1. 按 electron-builder `files` 规则收集 `src/**`、`package.json`、
-   node_modules 运行时闭包(两棵树 BFS);
+   node_modules 运行时闭包(`file:` 链接时跨两棵树 BFS);
 2. 用 `createPackageFromStreams` 逐文件打包(路径跨两棵 node_modules,
    `createPackageFromFiles` 做不到);
 3. `normalizeAsarPaths()`:@electron/asar 在 Windows 上把 asar 头内路径
@@ -173,7 +162,7 @@ npm run repack:asar    # 重建 resources/app.asar(81 MB,~10.8k 文件)
 | 症状 | 原因 / 处理 |
 |---|---|
 | `npm install` 卡在 electron 下载 | 配置 `electron_mirror`(§2),或代理 |
-| 启动报找不到 `@earendil-works/*` | pi monorepo 不在兄弟目录,或 junction 失效 —— 重新 `npm install` |
+| 启动报找不到 `@earendil-works/*` | 安装不完整(网络/registry 问题)—— 重新 `npm install`;若用 `file:` monorepo 链接,还需检查兄弟目录与 junction |
 | EBUSY(Windows 升级 electron 等) | 有 Electron 进程占用文件,先 `Stop-Process electron` 再装 |
 | 打包最后一步 winCodeSign 报 symlink 权限 | 非管理员限制。用 §5 的 `package:dir` + `repack:asar` 流程;或开开发者模式/管理员 |
 | 打包版窗口空白、状态不出现 | 渲染器错过一次性 `host:ready` 推送 —— 已在代码中以 `host.snapshot` 拉取修复;若复现,确认 asar 是 repack 脚本产物(头内路径为正斜杠) |
@@ -184,7 +173,7 @@ npm run repack:asar    # 重建 resources/app.asar(81 MB,~10.8k 文件)
 
 ## 8. 发布检查单
 
-1. `npm test` 全绿(81 用例)+ `node test/smoke-host.mjs` 通过;
+1. `npm test` 全绿(104 用例)+ `node test/smoke-host.mjs` 通过;
 2. 目标平台 `npm run package:dir`,启动验证:快照状态、一次真实
    prompt(含工具调用)、模态框开关、主题切换;
 3. Windows 非管理员环境执行 `npm run repack:asar` 后重复第 2 步;

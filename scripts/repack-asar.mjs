@@ -4,10 +4,12 @@
 // Two complications vs. a naive walk:
 // 1. The pi packages are npm `file:` junctions into the local monorepo, whose
 //    packages junction-reference each other (cycles) -> realpath cycle guard.
-// 2. npm does not install the `file:`-linked pi packages' own dependencies
+// 2. When pi-desktop depends on the pi packages via `file:` links, npm does
+//    not install the pi packages' own dependencies
 //    into pi-desktop/node_modules; they live hoisted in the monorepo root
 //    (pi/node_modules). We therefore compute the runtime dependency closure
-//    of the pi packages and merge packages from both node_modules trees.
+//    of the pi packages and merge packages from both node_modules trees
+//    (the monorepo tree is ignored for registry installs).
 //
 // Packing uses createPackageFromStreams so each asar entry can be read from a
 // different source root (pi-desktop vs. the monorepo).
@@ -16,12 +18,16 @@ const { createPackageFromStreams } = asarPkg;
 import fs from "node:fs";
 import path from "node:path";
 
-const root = process.argv[2] ?? "D:/Personal/pi-agent-fork/pi-desktop";
-const monoRoot = process.argv[3] ?? "D:/Personal/pi-agent-fork/pi";
+// Usage: node scripts/repack-asar.mjs [root] [pi-mono-root] [dest-asar]
+const root = process.argv[2] ?? process.cwd();
+const monoRoot = process.argv[3] ?? path.join(path.dirname(root), "pi");
 const dest = process.argv[4] ?? path.join(root, "release/win-unpacked/resources/app.asar");
 
 const nmDesktop = path.join(root, "node_modules");
 const nmMono = path.join(monoRoot, "node_modules");
+// The monorepo tree is only present when pi-desktop depends on the pi
+// packages via `file:` links; for registry installs it is skipped.
+const hasMono = fs.existsSync(nmMono);
 
 // ---------------------------------------------------------------------------
 // 1. Collect the set of top-level package names needed in the asar.
@@ -56,7 +62,8 @@ const appPkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8
 const required = new Set(Object.keys(appPkg.dependencies ?? {}));
 // Make sure every @earendil-works workspace package reachable from the pi
 // packages is present, even if not directly named above.
-for (const n of topLevelNames(nmMono)) if (n.startsWith("@earendil-works/")) required.add(n);
+for (const n of hasMono ? topLevelNames(nmMono) : [])
+	if (n.startsWith("@earendil-works/")) required.add(n);
 
 let changed = true;
 while (changed) {

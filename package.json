@@ -19,6 +19,7 @@
 		"build:linux": "electron-builder --linux",
 		"package:dir": "electron-builder --dir",
 		"repack:asar": "node scripts/repack-asar.mjs",
+		"make-icons": "node scripts/make-icons.mjs",
 		"vendor:hljs": "esbuild node_modules/highlight.js/lib/index.js --bundle --format=iife --global-name=hljs --platform=browser --minify --outfile=src/renderer/vendor/highlight.js"
 	},
 	"dependencies": {

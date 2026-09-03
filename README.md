@@ -96,9 +96,9 @@ they happen.
 ## Development
 
 ```sh
-npm install          # installs electron + pi packages (file: links to ../pi)
+npm install          # installs dependencies (electron + @earendil-works/pi-*)
 npm start            # run the app
-npm test             # vitest unit tests (81)
+npm test             # vitest unit tests (104)
 node test/smoke-host.mjs   # headless SDK wiring smoke test
 ```
 
@@ -128,25 +128,25 @@ dependency:
 npm run vendor:hljs
 ```
 
-### Note on this machine (Windows, non-admin)
+### Note for Windows non-admin builds
 
-`electron-builder` completes all packaging steps on this machine except the
-final `rcedit`/winCodeSign step, because the winCodeSign archive contains
-macOS symlinks that Windows 7-Zip cannot materialize without the
-`SeCreateSymbolicLinkPrivilege` admin right. To produce a runnable `release
-\win-unpacked` app here, use the repack helper:
+`electron-builder` materializes symlinks from the winCodeSign archive, which
+requires the `SeCreateSymbolicLinkPrivilege` admin right (or Windows
+Developer Mode). Without it, the build completes except the final code-sign
+step. In that case, finish the `release/win-unpacked` output by hand with the
+repack helper:
 
 ```sh
-npm run repack:asar   # rebuilds resources/app.asar from source + monorepo deps
+npm run repack:asar   # rebuilds resources/app.asar from the installed tree
 ```
 
-It mirrors the electron-builder `files` pattern, computes the pi packages'
-runtime dependency closure across both `node_modules` trees (npm does not
-hoist `file:`-linked deps), and fixes the asar header path separators.
+It mirrors the electron-builder `files` pattern and fixes the asar header
+path separators. See [docs/installation.md](docs/installation.md) for the
+full walkthrough.
 
 ## Tests
 
-- `npm test` — 81 unit tests (slash parsing, keybindings, diff rendering,
+- `npm test` — 104 unit tests (slash parsing, keybindings, diff rendering,
   theme resolution, tree utilities, workspace grouping, formatting,
   markdown sanitization, IPC channel allow-list).
 - `node test/smoke-host.mjs` — headless end-to-end SDK wiring (model runtime,
@@ -154,3 +154,7 @@ hoist `file:`-linked deps), and fixes the asar header path separators.
 - UI smoke: `npm start -- --smoke` with `SMOKE_PROMPT` drives a real prompt
   (including tool calls) through the packaged/dev UI and captures a
   screenshot.
+
+## License
+
+MIT — see `package.json`.

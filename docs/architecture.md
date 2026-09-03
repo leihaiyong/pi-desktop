@@ -9,11 +9,11 @@ Pi Desktop 是 [pi coding agent](https://pi.dev) 的跨平台桌面客户端,目
 
 | 层 | 技术 | 说明 |
 |---|---|---|
-| Agent 运行时 | `@earendil-works/pi-coding-agent`(pi SDK) | 以 `file:` 链接方式依赖本地 pi monorepo,main 进程内运行 |
+| Agent 运行时 | `@earendil-works/pi-coding-agent`(pi SDK) | npm registry 发布包(main 进程内运行);pi 开发者可改 `file:` 链接本地 monorepo |
 | 桌面壳 | Electron 37 | 三进程模型 + contextBridge |
 | UI | 原生 HTML/CSS/JS(ESM,无框架、无构建步骤) | 渲染器直接加载 `src/renderer/` |
 | Markdown | marked 15(转义原始 HTML)+ highlight.js 10(esbuild 预打包 IIFE) | |
-| 测试 | vitest(81 单测)+ 无头 SDK 冒烟测试 | |
+| 测试 | vitest(104 单测)+ 无头 SDK 冒烟测试 | |
 | 打包 | electron-builder + 自研 asar 重打包脚本 | |
 
 设计原则:
@@ -285,15 +285,15 @@ electron-builder.yml
 
 - **asar 布局**:`app.asar` 内同时含 `src/`(应用源码)、`package.json`、
   `node_modules/`(运行时依赖闭包)。
-- **依赖闭包问题**:pi 包是 `file:` junction 链接,其自身依赖留在
-  monorepo 根 `pi/node_modules`,npm 不会提升安装到 pi-desktop。
-  `scripts/repack-asar.mjs` 从 pi-desktop 的 runtime dependencies 出发
-  BFS 计算跨两棵 node_modules 树的依赖闭包(约 140 个包),
-  用 `createPackageFromStreams` 逐文件打包。
+- **依赖闭包**:从 pi-desktop 的 runtime dependencies 出发 BFS 计算
+  `dependencies` 图(约 140 个包)。registry 安装为单棵 node_modules 树;
+  若 pi 包以 `file:` 链接本地 monorepo,其自身依赖留在 `pi/node_modules`
+  (npm 不提升 `file:` 链接包的依赖),repack 脚本会合并两棵树计算闭包,
+  并用 `createPackageFromStreams` 逐文件打包。
 - **Windows 路径问题**:`@electron/asar` 的 `path.normalize` 在 Windows
   上把 asar 头内路径变成反斜杠,Electron 加载器只认正斜杠;
   repack 脚本在打包后对 asar 头 JSON 做原地重写(`normalizeAsarPaths`)。
-- **winCodeSign 限制**(本机,非管理员):electron-builder 最后一步需要
+- **winCodeSign 限制**(Windows 非管理员、未开开发者模式):electron-builder 最后一步需要
   符号链接权限。解法:`npm run package:dir` 产出 `release/win-unpacked`
   后执行 `npm run repack:asar` 重建 asar,得到完整可运行目录。
 - **highlight.js**:npm 包只带 CJS lib,浏览器不可用;
@@ -304,7 +304,7 @@ electron-builder.yml
 
 | 层 | 工具 | 覆盖 |
 |---|---|---|
-| 纯函数 | vitest(81 用例) | slash 解析、键位、diff、主题、树、工作区分组、格式化、Markdown 转义、IPC 白名单与 dispatch 一致性(源码级) |
+| 纯函数 | vitest(104 用例) | slash 解析、键位、diff、主题、树、工作区分组、格式化、Markdown 转义、IPC 白名单与 dispatch 一致性(源码级) |
 | SDK 接线 | `node test/smoke-host.mjs` | 无头运行真实 SDK:模型运行时、会话、工具切换、bash、fork、命名、队列、设置 |
 | 端到端 | CDP 脚本(`scripts/cdp-eval.mjs`)+ `--smoke` 模式 | 启动→快照→prompt→工具调用→渲染,dev 与打包版各验证一遍 |
 | 打包 | electron-builder / repack:asar | 三平台产物;本机以 win-unpacked 为准 |

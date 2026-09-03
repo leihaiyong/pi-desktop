@@ -259,8 +259,11 @@ export function openConfirmDialog({ title, message, confirmLabel = t("modal.conf
 // ---------------------------------------------------------------- selectors
 
 export function openModelSelector({ models, current, thinkingLevels, onPick, platform = "darwin" }) {
+	// only models with active auth appear in the list; the current model is
+	// kept visible even if it lost auth, so the dialog is never confusingly empty
+	const visible = models.filter((m) => m.available || (current && current.provider === m.provider && current.id === m.id));
 	const byProvider = new Map();
-	for (const m of models) {
+	for (const m of visible) {
 		if (!byProvider.has(m.provider)) byProvider.set(m.provider, []);
 		byProvider.get(m.provider).push(m);
 	}

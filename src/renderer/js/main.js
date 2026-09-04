@@ -266,7 +266,7 @@ function updateTitlebarLabels(snap) {
 	if (!snap) return;
 	$("#tb-model").textContent = snap.model ? `${snap.model.provider}/${snap.model.id}` : t("app.noModel");
 	$("#tb-thinking").textContent = snap.thinkingLevel ? t("app.thinkPrefix", { level: snap.thinkingLevel }) : "";
-	$("#tb-session").textContent = snap.sessionName ?? t("app.newSessionLabel");
+	$("#tb-session").textContent = snap.sessionName ?? t("info.unnamed");
 	$("#tb-cwd").textContent = snap.cwd ?? "";
 }
 
@@ -473,7 +473,7 @@ function handleAgentEvent(event) {
 		}
 		case "session_info_changed":
 			if (state.snapshot) state.snapshot.sessionName = event.name;
-			$("#tb-session").textContent = event.name ?? t("app.newSessionLabel");
+			$("#tb-session").textContent = event.name ?? t("info.unnamed");
 			break;
 		case "thinking_level_changed":
 			if (state.snapshot) {

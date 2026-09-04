@@ -64,7 +64,6 @@ const MESSAGES = {
 		"editor.placeholder": "Message pi…  (/ commands, @files, !bash, paste or capture images)",
 
 		// ---- app (toasts, titlebar, auth, misc) ----
-		"app.newSessionLabel": "new session",
 		"app.noModel": "no model",
 		"app.thinkPrefix": "think: {level}",
 		"app.thinkShort": "think:{level}",
@@ -441,7 +440,6 @@ const MESSAGES = {
 		"editor.placeholder": "给 pi 发消息…（/ 命令、@文件、!bash、粘贴或截取图片）",
 
 		// ---- 应用（toast、标题栏、认证等） ----
-		"app.newSessionLabel": "新会话",
 		"app.noModel": "无模型",
 		"app.thinkPrefix": "思考: {level}",
 		"app.thinkShort": "思考:{level}",

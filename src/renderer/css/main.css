@@ -907,6 +907,15 @@ body {
 	text-align: center;
 }
 
+/* disabled resource (extensions / skills browser): dimmed, muted check */
+.modal-item.mi-dim {
+	opacity: 0.6;
+}
+
+.modal-item.mi-dim .mi-check {
+	color: var(--muted);
+}
+
 .modal-footer {
 	padding: 8px 16px 12px;
 	font-size: calc(11px * var(--fs, 1.1429));

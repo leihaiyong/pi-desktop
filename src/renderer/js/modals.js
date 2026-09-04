@@ -733,6 +733,73 @@ export function openScopedModelsSelector({ models, current = [], onSave }) {
 	open();
 }
 
+/**
+ * Browse + manage extensions or skills (enabled AND disabled).
+ *
+ * Enter toggles enable/disable (onToggle re-fetches and re-renders); Ctrl+O
+ * reveals the file in the file manager; Ctrl+C copies its path; Ctrl+R
+ * re-scans disk and re-loads the session. `data` is the `resources.list`
+ * payload; onToggle/onReload return a fresh payload to re-render with.
+ */
+export function openResourceModal({ kind, data, onToggle, onReveal, onCopy, onReload }) {
+	const scopeLabel = (scope) =>
+		scope === "project" ? t("modal.resourcesScopeProject") : scope === "local" || scope === "path" ? t("modal.resourcesScopeLocal") : t("modal.resourcesScopeUser");
+	const resPath = (item) => item.filePath ?? item.path;
+
+	const open = (current) => {
+		const list = current[kind] ?? [];
+		const enabledCount = list.filter((x) => x.enabled).length;
+		const items = list.length
+			? list.map((item) => ({
+					label: item.name,
+					sub: [item.description, scopeLabel(item.scope), item.enabled ? "" : t("modal.resourcesDisabled")].filter(Boolean).join(" · "),
+					cls: item.enabled ? "" : "mi-dim",
+					checked: item.enabled,
+					mark: item.enabled ? "" : "✕",
+					data: item,
+				}))
+			: [{ label: t("modal.resourcesEmpty"), sub: "", disabled: true, checked: false, data: null }];
+
+		openModal({
+			title: t("modal.resourcesTitle", { kind: t(`modal.resourcesKind.${kind}`), enabled: enabledCount, total: list.length }),
+			searchable: true,
+			items,
+			footer: t("modal.resourcesFooter"),
+			onSelect: (item) => {
+				if (!item.data) return;
+				void (async () => {
+					const fresh = await onToggle(item.data);
+					if (fresh) open(fresh);
+				})();
+				return false; // stay open; re-rendered with fresh data once onToggle resolves
+			},
+			onKey: (e, ctx) => {
+				const item = ctx?.selected?.data;
+				if (e.ctrlKey && (e.key === "r" || e.key === "R")) {
+					e.preventDefault();
+					void (async () => {
+						const fresh = await onReload();
+						if (fresh) open(fresh);
+					})();
+					return true;
+				}
+				if (e.ctrlKey && (e.key === "o" || e.key === "O")) {
+					e.preventDefault();
+					if (item) onReveal?.(item);
+					return true;
+				}
+				if (e.ctrlKey && (e.key === "c" || e.key === "C")) {
+					e.preventDefault();
+					if (item) onCopy?.(item, resPath(item));
+					return true;
+				}
+			},
+		});
+	};
+
+	open(data);
+}
+
 export function openLoginSelector({ providers, authStatus, onLogin, onApiKey, onLogout }) {
 	// models.authStatus may carry either the SDK AuthStatus object
 	// ({configured, source?, label?}) or a plain fallback string

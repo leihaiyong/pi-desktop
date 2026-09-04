@@ -809,6 +809,33 @@ async function openProvidersUI() {
 	});
 }
 
+/** Browse + manage extensions (/extensions) or skills (/skills). */
+function openResourceBrowserUI(kind) {
+	return (async () => {
+		const data = (await invokeSafe("resources.list", {})) ?? { extensions: [], skills: [], extensionErrors: [] };
+		modals.openResourceModal({
+			kind,
+			data,
+			onToggle: async (item) => {
+				const res = await invokeSafe("resources.toggle", { type: kind, path: item.filePath ?? item.path, enabled: !item.enabled });
+				if (res?.error) return toast(res.error, "error");
+				toast(!item.enabled ? t("app.resourceToggledOn", { name: item.name }) : t("app.resourceToggledOff", { name: item.name }), "success");
+				return (await invokeSafe("resources.list", {})) ?? data;
+			},
+			onReveal: (item) => void invokeSafe("system.revealPath", { path: item.filePath ?? item.path }),
+			onCopy: (item, resPath) => {
+				void invokeSafe("system.clipboard.write", { text: resPath });
+				toast(t("app.resourcePathCopied"), "success");
+			},
+			onReload: async () => {
+				await invokeSafe("resources.reload", {});
+				toast(t("app.resourceReloaded"), "success");
+				return (await invokeSafe("resources.list", {})) ?? data;
+			},
+		});
+	})();
+}
+
 async function runCommand(line) {
 	const parsed = parseSlashCommand(line);
 	if (!parsed) return false;
@@ -1128,6 +1155,12 @@ async function runCommand(line) {
 			await openProvidersUI();
 			return true;
 		}
+		case "/extensions":
+			void openResourceBrowserUI("extensions");
+			return true;
+		case "/skills":
+			void openResourceBrowserUI("skills");
+			return true;
 		case "/scoped-models": {
 			if (args) {
 				const res = await invokeSafe("session.scope.set", { patterns: args.split(/\s+/) });

@@ -14,11 +14,13 @@ import {
 	getPackageDir,
 	resolveModelScopeWithDiagnostics,
 	detectSupportedImageMimeTypeFromFile,
+	parseFrontmatter,
 } from "@earendil-works/pi-coding-agent";
 import { shellConfigForPlatform } from "./platform.js";
 import { groupWorkspaces } from "../shared/workspaces.js";
 import { isValidRect, clampCrop } from "../shared/snip.js";
 import { parseModelsJson, serializeModelsJson } from "../shared/model-config.js";
+import { resourceTogglePattern } from "../shared/resources.js";
 
 // Mirrors the SDK's getDefaultSessionDirPath encoding (the function is not
 // exported from the package entry): <agentDir>/sessions/--<cwd, / \ : -> ->--
@@ -39,6 +41,19 @@ function resolveExportPath(picked, defaultName) {
 		// picked path doesn't exist yet (a typed filename) — use as-is
 	}
 	return picked;
+}
+
+/** Read a skill's SKILL.md frontmatter for name/description. Used to list
+ *  disabled skills, which are not in the loader's loaded (enabled) set. */
+function readSkillMeta(filePath) {
+	try {
+		const { frontmatter } = parseFrontmatter(fs.readFileSync(filePath, "utf8"));
+		const name = typeof frontmatter?.name === "string" ? frontmatter.name : undefined;
+		const description = typeof frontmatter?.description === "string" ? frontmatter.description : undefined;
+		return { name, description };
+	} catch {
+		return {};
+	}
 }
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -105,6 +120,9 @@ const IPC_CHANNELS = new Set([
 	"models.config.save",
 	"resources.changelog",
 	"resources.get",
+	"resources.list",
+	"resources.toggle",
+	"resources.reload",
 	"theme.list",
 	"theme.css",
 	"settings.get",
@@ -554,6 +572,91 @@ export class AgentHost {
 		return [...new Set([...names, ...loaderNames])];
 	}
 
+	// ---------------------------------------------------------------- resources
+	//
+	// Browse + manage extensions & skills. `resolve()` returns every discovered
+	// resource with its enabled flag (unlike loader.getSkills()/getExtensions(),
+	// which only hold the enabled set), so the UI can list and toggle both.
+
+	/** Full list of extensions & skills (enabled + disabled) with metadata. */
+	async #listResources() {
+		const loader = this.#runtime?.services?.resourceLoader;
+		if (!loader) return { extensions: [], skills: [], extensionErrors: [] };
+		const resolved = await loader.packageManager.resolve();
+		const loadedSkills = new Map((loader.getSkills()?.skills ?? []).map((s) => [s.filePath, s]));
+		const loadedExts = new Map((loader.getExtensions()?.extensions ?? []).map((e) => [e.path ?? e.sourcePath, e]));
+
+		const skills = resolved.skills.map((r) => {
+			const loaded = loadedSkills.get(r.path);
+			const meta = loaded ? {} : readSkillMeta(r.path);
+			return {
+				name: loaded?.name || meta.name || path.basename(path.dirname(r.path)),
+				description: loaded?.description || meta.description || "",
+				filePath: r.path,
+				enabled: r.enabled,
+				scope: r.metadata?.scope,
+				source: r.metadata?.source,
+			};
+		});
+		const extensions = resolved.extensions.map((r) => {
+			const loaded = loadedExts.get(r.path);
+			return {
+				name: loaded?.name || path.basename(r.path),
+				description: loaded?.description,
+				version: loaded?.version,
+				path: r.path,
+				enabled: r.enabled,
+				scope: r.metadata?.scope,
+				source: r.metadata?.source,
+			};
+		});
+		const extensionErrors = (loader.getExtensions()?.errors ?? []).map((e) => ({ path: e.path, error: e.error }));
+		return { extensions, skills, extensionErrors };
+	}
+
+	/**
+	 * Enable/disable a discovered resource by writing (or removing) a `!pattern`
+	 * into the matching settings array, then reload the session. The settings
+	 * scope follows the resource: project-scope resources live in the project
+	 * settings, everything else in the global (user) settings.
+	 */
+	async #toggleResource(type, filePath, enabled) {
+		const sm = this.session?.settingsManager;
+		const loader = this.#runtime?.services?.resourceLoader;
+		const pm = loader?.packageManager;
+		if (!sm || !pm) throw new Error(t("host.resourcesNotReady"));
+		const isSkill = type === "skill" || type === "skills";
+		const resolved = await pm.resolve();
+		const list = isSkill ? resolved.skills : resolved.extensions;
+		// normalize separators + case so the requested path matches resolve()'s paths
+		const norm = (p) => String(p).replace(/\\/g, "/").toLowerCase();
+		const wanted = norm(filePath);
+		const entry = list.find((r) => norm(r.path) === wanted);
+		if (!entry) throw new Error(t("host.resourceNotFound", { name: path.basename(filePath) }));
+
+		const pattern = resourceTogglePattern(isSkill ? "skill" : "extension", entry.path, entry.metadata?.baseDir);
+		const override = `!${pattern}`;
+		const arrKey = isSkill ? "skills" : "extensions";
+		const isProject = entry.metadata?.scope === "project";
+
+		const current = isProject
+			? [...(sm.getProjectSettings()[arrKey] ?? [])]
+			: [...(isSkill ? sm.getSkillPaths() : sm.getExtensionPaths())];
+		const next = enabled ? current.filter((x) => x !== override) : current.includes(override) ? current : [...current, override];
+
+		if (isProject) {
+			if (isSkill) sm.setProjectSkillPaths(next);
+			else sm.setProjectExtensionPaths(next);
+		} else {
+			if (isSkill) sm.setSkillPaths(next);
+			else sm.setExtensionPaths(next);
+		}
+
+		await this.session?.reload();
+		await this.sessionReplaced();
+		return { ok: true, enabled };
+	}
+
 	// =========================================================================
 	// IPC registration
 	// =========================================================================
@@ -915,6 +1018,16 @@ export class AgentHost {
 					extensionErrors: (loader.getExtensions()?.errors ?? []).map((e) => ({ path: e.path, error: e.error })),
 					contextFiles: (loader.getAgentsFiles?.()?.agentsFiles ?? []).map((f) => ({ path: f.path, content: f.content })),
 				};
+			}
+			// --- browse / manage extensions & skills (enabled + disabled) ---
+			case "resources.list":
+				return await this.#listResources();
+			case "resources.toggle":
+				return await this.#toggleResource(params.type, params.path, !!params.enabled);
+			case "resources.reload": {
+				await s.reload();
+				await this.sessionReplaced();
+				return { ok: true };
 			}
 			case "settings.get":
 				return this.settingsSnapshot();

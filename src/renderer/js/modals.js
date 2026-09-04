@@ -288,8 +288,8 @@ export function openModelSelector({ models, current, thinkingLevels, onPick, pla
 		items,
 		footer: t("modal.enterSelect"),
 		onSelect: (item) => {
+			// close after picking, like the TUI selector; feedback comes as a toast
 			onPick(item.data);
-			return false;
 		},
 	});
 }

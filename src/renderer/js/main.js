@@ -261,6 +261,17 @@ function openWorkspacePickerUI() {
 	});
 }
 
+/** Patch the displayed model (and thinking level) after a model change that
+ *  does not come with a fresh snapshot: the SDK emits no model-changed event,
+ *  so the titlebar/footer would otherwise keep showing the old model. */
+function setModelInUi(model, thinkingLevel) {
+	if (!state.snapshot) return;
+	if (model) state.snapshot.model = { provider: model.provider, id: model.id, name: model.name };
+	if (thinkingLevel) state.snapshot.thinkingLevel = thinkingLevel;
+	updateTitlebarLabels(state.snapshot);
+	updateFooter();
+}
+
 /** Dynamic titlebar labels (language-dependent; refreshed on snapshot AND on language switch). */
 function updateTitlebarLabels(snap) {
 	if (!snap) return;
@@ -856,7 +867,10 @@ async function runCommand(line) {
 				if (match) {
 					const res = await invokeSafe("session.model.set", { provider: match[1], id: match[2] });
 					if (res?.error) toast(res.error, "error");
-					else toast(t("app.modelSet", { model: `${match[1]}/${match[2]}` }), "success");
+					else {
+						setModelInUi(res.model ?? { provider: match[1], id: match[2] });
+						toast(t("app.modelSet", { model: `${match[1]}/${match[2]}` }), "success");
+					}
 					return true;
 				}
 			}
@@ -868,6 +882,10 @@ async function runCommand(line) {
 				onPick: async (m) => {
 					const res = await invokeSafe("session.model.set", { provider: m.provider, id: m.id });
 					if (res?.error) toast(res.error, "error");
+					else {
+						setModelInUi(res.model ?? { provider: m.provider, id: m.id });
+						toast(t("app.modelSet", { model: `${m.provider}/${m.id}` }), "success");
+					}
 				},
 			});
 			return true;
@@ -1376,10 +1394,10 @@ async function performAction(action, e) {
 			runCommand("/model");
 			break;
 		case "app.model.cycleForward":
-			void invokeSafe("session.model.cycle", { backward: false });
+			void invokeSafe("session.model.cycle", { backward: false }).then((res) => setModelInUi(res?.model, res?.thinkingLevel));
 			break;
 		case "app.model.cycleBackward":
-			void invokeSafe("session.model.cycle", { backward: true });
+			void invokeSafe("session.model.cycle", { backward: true }).then((res) => setModelInUi(res?.model, res?.thinkingLevel));
 			break;
 		case "app.thinking.cycle":
 			void invokeSafe("session.thinking.cycle").then((res) => {

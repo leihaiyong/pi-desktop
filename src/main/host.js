@@ -28,6 +28,19 @@ function sessionDirForCwd(cwd) {
 	return path.join(getAgentDir(), "sessions", safe);
 }
 
+/** If the export target is a directory the user picked, place the SDK's
+ *  default-named file inside it; a full file path (or undefined) passes through
+ *  unchanged so the SDK applies its own default. */
+function resolveExportPath(picked, defaultName) {
+	if (!picked) return picked;
+	try {
+		if (fs.statSync(picked).isDirectory()) return path.join(picked, defaultName);
+	} catch {
+		// picked path doesn't exist yet (a typed filename) — use as-is
+	}
+	return picked;
+}
+
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 // Cap for base64 file reads over IPC (image attachments only).
@@ -717,10 +730,18 @@ export class AgentHost {
 				return s.systemPrompt;
 
 			// --- export ---
-			case "session.exportHtml":
-				return await s.exportToHtml(params.path, { themeName: params.themeName });
-			case "session.exportJsonl":
-				return s.exportToJsonl(params.path);
+			case "session.exportHtml": {
+				// the renderer may pass a picked directory; name the file the same
+				// way the SDK does when no path is given
+				const sessionFile = this.runtime?.session?.sessionFile ?? s?.sessionFile;
+				const base = sessionFile ? path.basename(sessionFile, ".jsonl") : "session";
+				const out = resolveExportPath(params.path, `pi-session-${base}.html`);
+				return await s.exportToHtml(out, { themeName: params.themeName });
+			}
+			case "session.exportJsonl": {
+				const out = resolveExportPath(params.path, `session-${new Date().toISOString().replace(/[:.]/g, "-")}.jsonl`);
+				return s.exportToJsonl(out);
+			}
 
 			// --- session files ---
 			case "sessions.list": {

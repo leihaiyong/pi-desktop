@@ -758,11 +758,10 @@ const menuHandlers = {
 	"menu:settings": () => runCommand("/settings"),
 	"menu:export-html": () => runCommand("/export"),
 	"menu:export-jsonl": async () => {
-		const path = await window.pi.invoke("system.pickFile", {
-			filters: [{ name: "jsonl", extensions: ["jsonl"] }],
-		});
-		if (path) {
-			const result = await invokeSafe("session.exportJsonl", { path });
+		// pick a directory to export into; cancel = no export
+		const dir = await window.pi.invoke("system.pickDirectory", {});
+		if (dir) {
+			const result = await invokeSafe("session.exportJsonl", { path: dir });
 			if (result) toast(t("app.savedJsonl", { path: result }), "success");
 		}
 	},
@@ -971,10 +970,11 @@ async function runCommand(line) {
 			return true;
 		}
 		case "/export": {
-			const targetPath = args
-				? args
-				: await invokeSafe("system.pickFile", { filters: [{ name: "HTML", extensions: ["html"] }] });
-			const result = await invokeSafe("session.exportHtml", { path: targetPath ?? undefined });
+			// pick a directory to export into (the SDK names the file); cancel
+			// (or a failed picker) means no export, not "export to cwd"
+			const targetPath = args ?? (await invokeSafe("system.pickDirectory", {}));
+			if (!targetPath) return true;
+			const result = await invokeSafe("session.exportHtml", { path: targetPath });
 			if (result) {
 				toast(t("app.exportedHtml", { path: result }), "success");
 				await invokeSafe("system.revealPath", { path: result });

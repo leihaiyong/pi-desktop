@@ -972,7 +972,9 @@ async function runCommand(line) {
 		case "/export": {
 			// pick a directory to export into (the SDK names the file); cancel
 			// (or a failed picker) means no export, not "export to cwd"
-			const targetPath = args ?? (await invokeSafe("system.pickDirectory", {}));
+			// args is "" (not nullish) when the command is bare, so use || to
+			// actually open the picker; a picked/canceled dir or a typed path
+			const targetPath = args || (await invokeSafe("system.pickDirectory", {}));
 			if (!targetPath) return true;
 			const result = await invokeSafe("session.exportHtml", { path: targetPath });
 			if (result) {

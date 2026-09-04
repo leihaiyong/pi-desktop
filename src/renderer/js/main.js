@@ -978,8 +978,8 @@ async function runCommand(line) {
 			if (!targetPath) return true;
 			const result = await invokeSafe("session.exportHtml", { path: targetPath });
 			if (result) {
+				// match the JSONL export: toast only, don't open the file browser
 				toast(t("app.exportedHtml", { path: result }), "success");
-				await invokeSafe("system.revealPath", { path: result });
 			}
 			return true;
 		}

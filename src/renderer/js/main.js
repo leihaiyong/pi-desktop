@@ -13,6 +13,9 @@ import { t, getLanguage, setLanguage, SUPPORTED_LANGUAGES } from "../../shared/i
 const state = {
 	snapshot: null,
 	bindings: {},
+	// true between agent_start and agent_end; the snapshot's isStreaming flag
+	// only refreshes after agent_settled, so this tracks the in-flight prompt
+	agentRunning: false,
 	workingMessage: undefined,
 	workingVisible: true,
 	extensionStatus: new Map(),
@@ -394,7 +397,7 @@ function updateStatus() {
 	const parts = [];
 	if (snap.isCompacting) {
 		parts.push(`<span class="spinner"></span><span class="status-text">${escapeText(t("status.compacting"))}</span>`);
-	} else if (snap.isStreaming) {
+	} else if (snap.isStreaming || state.agentRunning) {
 		if (state.workingVisible) {
 			parts.push(`<span class="spinner"></span><span class="status-text">${escapeText(state.workingMessage ?? t("status.working"))}</span>`);
 		}
@@ -425,9 +428,14 @@ function escapeText(s) {
 function handleAgentEvent(event) {
 	switch (event.type) {
 		case "agent_start":
+			state.agentRunning = true;
+			// reset any extension working indicator left over from a previous run
+			state.workingMessage = undefined;
+			state.workingVisible = true;
 			updateStatus();
 			break;
 		case "agent_end":
+			state.agentRunning = false;
 			// individual message_end events already committed each message;
 			// agent_settled triggers a fresh snapshot rebuild
 			updateStatus();
@@ -1241,7 +1249,7 @@ const editor = new Editor({
 async function sendToSession(text, images) {
 	const snap = state.snapshot;
 	try {
-		if (snap?.isStreaming) {
+		if (snap?.isStreaming || state.agentRunning) {
 			// queue as steering while streaming (TUI behavior for plain Enter)
 			await window.pi.invoke("session.prompt", { text, images, streamingBehavior: "steer" });
 			toast(t("app.queuedSteering"), "info", 1500);

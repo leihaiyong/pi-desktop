@@ -248,10 +248,31 @@ export class Transcript {
 		// append a live block at the end
 		const existing = this.#root.querySelector("[data-live]");
 		if (existing) return existing;
+		// the "waiting for first token" placeholder is replaced by the live block
+		this.#root.querySelector("[data-live-waiting]")?.remove();
 		const el = this.#buildAssistantBlock(this.#streaming.message, { live: true });
 		this.#root.appendChild(el);
 		this.#maybeScroll();
 		return el;
+	}
+
+	/**
+	 * Waiting-for-model indicator: a spinner block at the end of the transcript,
+	 * shown between agent_start and the first streamed token (or a tool call).
+	 * Replaced by the live streaming block once output starts.
+	 */
+	showWaiting() {
+		if (this.#root.querySelector("[data-live],[data-live-waiting]")) return;
+		const el = document.createElement("div");
+		el.className = "msg msg-assistant";
+		el.dataset.liveWaiting = "";
+		el.innerHTML = `<div class="stream-waiting"><span class="spinner stream-spinner"></span></div>`;
+		this.#root.appendChild(el);
+		this.#maybeScroll();
+	}
+
+	clearWaiting() {
+		this.#root.querySelector("[data-live-waiting]")?.remove();
 	}
 
 	handleMessageUpdate(message, assistantMessageEvent) {
@@ -457,6 +478,13 @@ export class Transcript {
 			err.className = "msg-error";
 			err.textContent = `⚠ ${msg.errorMessage}`;
 			el.appendChild(err);
+		}
+		if (live) {
+			// trailing spinner follows the streaming output; commitAssistant()
+			// rebuilds without it once the message is final
+			const spin = document.createElement("span");
+			spin.className = "spinner stream-spinner";
+			el.appendChild(spin);
 		}
 		return el;
 	}

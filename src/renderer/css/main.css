@@ -568,6 +568,16 @@ body {
 	color: var(--muted);
 }
 
+/* spinner that follows the streaming output inside the transcript */
+.stream-spinner {
+	display: block;
+	margin-top: 4px;
+}
+
+.stream-waiting {
+	padding: 2px 0 4px;
+}
+
 #widgets-above,
 #widgets-below {
 	font-family: Consolas, monospace;

@@ -398,8 +398,10 @@ function updateStatus() {
 	if (snap.isCompacting) {
 		parts.push(`<span class="spinner"></span><span class="status-text">${escapeText(t("status.compacting"))}</span>`);
 	} else if (snap.isStreaming || state.agentRunning) {
-		if (state.workingVisible) {
-			parts.push(`<span class="spinner"></span><span class="status-text">${escapeText(state.workingMessage ?? t("status.working"))}</span>`);
+		// the spinner itself lives in the transcript, following the streaming
+		// output; only an extension-provided working message is shown here
+		if (state.workingVisible && state.workingMessage) {
+			parts.push(`<span class="status-text">${escapeText(state.workingMessage)}</span>`);
 		}
 	} else if (snap.isRetrying) {
 		parts.push(`<span class="spinner"></span><span class="status-text">${escapeText(t("status.retrying", { n: snap.retryAttempt }))}</span>`);
@@ -432,10 +434,15 @@ function handleAgentEvent(event) {
 			// reset any extension working indicator left over from a previous run
 			state.workingMessage = undefined;
 			state.workingVisible = true;
+			transcript.showWaiting();
 			updateStatus();
 			break;
 		case "agent_end":
 			state.agentRunning = false;
+			// the settled snapshot can still report isStreaming (SDK lags behind
+			// the settled event); clear it so the status line doesn't stick
+			if (state.snapshot) state.snapshot.isStreaming = false;
+			transcript.clearWaiting();
 			// individual message_end events already committed each message;
 			// agent_settled triggers a fresh snapshot rebuild
 			updateStatus();
@@ -1586,6 +1593,9 @@ async function refreshSnapshot(expectedCount, attempt = 0) {
 		await refreshSnapshot(expectedCount, attempt + 1);
 		return;
 	}
+	// The settled refresh can race the SDK: the snapshot may still report
+	// isStreaming although the agent events already marked the run finished.
+	if (expectedCount != null && !state.agentRunning) fresh.isStreaming = false;
 	applySnapshot(fresh, { quiet: true });
 }
 

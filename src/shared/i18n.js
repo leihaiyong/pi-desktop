@@ -101,6 +101,7 @@ const MESSAGES = {
 		"app.resourceToggledOff": "Disabled {name}",
 		"app.resourceReloaded": "Extensions & skills reloaded",
 		"app.resourcePathCopied": "Path copied to clipboard",
+		"app.resourcePackageLocked": "Package resources are managed via /packages",
 		"app.noForkMessages": "No user messages to fork from",
 		"app.navCancelled": "Navigation cancelled by extension",
 		"app.queuedFollowUp": "Queued follow-up",
@@ -181,6 +182,8 @@ const MESSAGES = {
 		"modal.resourcesScopeUser": "user",
 		"modal.resourcesScopeProject": "project",
 		"modal.resourcesScopeLocal": "local",
+		"modal.resourcesBy": "by {name}",
+		"modal.resourcesPackage": "package",
 		"modal.providerLogin": "Provider login",
 		"modal.noAuthMethod": "no interactive auth",
 		"modal.statusLabel": "status: {value}",
@@ -377,6 +380,7 @@ const MESSAGES = {
 		"host.customComponentUnsupported": "Custom focused components are not supported in the desktop UI",
 		"host.resourcesNotReady": "Session not ready yet",
 		"host.resourceNotFound": "Resource not found: {name}",
+		"host.resourcePackageLocked": "Package resources are managed via /packages",
 
 		// ---- slash command descriptions (key = cmdDesc.<name without slash>) ----
 		"cmdDesc.help": "Show available commands and hotkeys",
@@ -495,6 +499,7 @@ const MESSAGES = {
 		"app.resourceToggledOff": "已禁用 {name}",
 		"app.resourceReloaded": "扩展与技能已重新加载",
 		"app.resourcePathCopied": "路径已复制到剪贴板",
+		"app.resourcePackageLocked": "包资源通过 /packages 管理",
 		"app.noForkMessages": "没有可分叉的用户消息",
 		"app.navCancelled": "扩展已取消导航",
 		"app.queuedFollowUp": "已加入后续队列",
@@ -575,6 +580,8 @@ const MESSAGES = {
 		"modal.resourcesScopeUser": "用户",
 		"modal.resourcesScopeProject": "项目",
 		"modal.resourcesScopeLocal": "本地",
+		"modal.resourcesBy": "作者 {name}",
+		"modal.resourcesPackage": "包",
 		"modal.providerLogin": "提供商登录",
 		"modal.noAuthMethod": "无交互式登录",
 		"modal.statusLabel": "状态: {value}",
@@ -771,6 +778,7 @@ const MESSAGES = {
 		"host.customComponentUnsupported": "桌面 UI 不支持自定义聚焦组件",
 		"host.resourcesNotReady": "会话尚未就绪",
 		"host.resourceNotFound": "未找到资源: {name}",
+		"host.resourcePackageLocked": "包资源通过 /packages 管理",
 
 		// ---- 斜杠命令描述（key = cmdDesc.<去掉斜杠的命令名>） ----
 		"cmdDesc.help": "显示可用命令与快捷键",

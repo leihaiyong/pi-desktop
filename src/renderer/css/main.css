@@ -916,6 +916,40 @@ body {
 	color: var(--muted);
 }
 
+/* stacked resource row: name (line 1) + meta/check on the right,
+ * description + source + scope wrapped below */
+.modal-item.stacked {
+	flex-direction: column;
+	align-items: stretch;
+	justify-content: flex-start;
+	gap: 2px;
+}
+
+.modal-item.stacked .mi-l1 {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
+}
+
+.modal-item.stacked .mi-main {
+	flex: 1;
+}
+
+.modal-item.stacked .mi-meta {
+	color: var(--muted);
+	font-size: calc(11px * var(--fs, 1.1429));
+	white-space: nowrap;
+}
+
+.modal-item.stacked .mi-detail {
+	color: var(--muted);
+	font-size: calc(11px * var(--fs, 1.1429));
+	line-height: 1.35;
+	white-space: normal;
+	padding-right: 18px;
+}
+
 .modal-footer {
 	padding: 8px 16px 12px;
 	font-size: calc(11px * var(--fs, 1.1429));

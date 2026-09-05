@@ -827,6 +827,9 @@ function openResourceBrowserUI(kind) {
 				void invokeSafe("system.clipboard.write", { text: resPath });
 				toast(t("app.resourcePathCopied"), "success");
 			},
+			onLocked: () => {
+				toast(t("app.resourcePackageLocked"), "info");
+			},
 			onReload: async () => {
 				await invokeSafe("resources.reload", {});
 				toast(t("app.resourceReloaded"), "success");

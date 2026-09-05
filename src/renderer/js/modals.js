@@ -39,6 +39,7 @@ function openModal({
 	onKey,
 	onClose,
 	renderBody,
+	stacked = false,
 }) {
 	closeTop();
 	const root = modalRoot();
@@ -84,11 +85,21 @@ function openModal({
 		}
 		visible.forEach((it, i) => {
 			const row = document.createElement("div");
-			row.className = "modal-item" + (it.cls ? ` ${it.cls}` : "") + (i === selected ? " selected" : "");
-			row.innerHTML = `<span class="mi-main"></span><span class="mi-sub"></span><span class="mi-check"></span>`;
-			row.querySelector(".mi-main").textContent = it.label;
-			row.querySelector(".mi-sub").textContent = it.sub ?? "";
-			row.querySelector(".mi-check").textContent = it.checked ? "✓" : it.mark ?? "";
+			row.className =
+				"modal-item" + (stacked ? " stacked" : "") + (it.cls ? ` ${it.cls}` : "") + (i === selected ? " selected" : "");
+			const checkText = it.checked ? "✓" : it.mark ?? "";
+			if (stacked) {
+				row.innerHTML =
+					`<div class="mi-l1"><span class="mi-main"></span><span class="mi-meta"></span><span class="mi-check"></span></div><div class="mi-detail"></div>`;
+				row.querySelector(".mi-main").textContent = it.label;
+				row.querySelector(".mi-meta").textContent = it.meta ?? "";
+				row.querySelector(".mi-detail").textContent = it.sub ?? "";
+			} else {
+				row.innerHTML = `<span class="mi-main"></span><span class="mi-sub"></span><span class="mi-check"></span>`;
+				row.querySelector(".mi-main").textContent = it.label;
+				row.querySelector(".mi-sub").textContent = it.sub ?? "";
+			}
+			row.querySelector(".mi-check").textContent = checkText;
 			row.addEventListener("click", () => {
 				selected = i;
 				choose(it);
@@ -741,32 +752,48 @@ export function openScopedModelsSelector({ models, current = [], onSave }) {
  * re-scans disk and re-loads the session. `data` is the `resources.list`
  * payload; onToggle/onReload return a fresh payload to re-render with.
  */
-export function openResourceModal({ kind, data, onToggle, onReveal, onCopy, onReload }) {
+export function openResourceModal({ kind, data, onToggle, onReveal, onCopy, onReload, onLocked }) {
 	const scopeLabel = (scope) =>
 		scope === "project" ? t("modal.resourcesScopeProject") : scope === "local" || scope === "path" ? t("modal.resourcesScopeLocal") : t("modal.resourcesScopeUser");
 	const resPath = (item) => item.filePath ?? item.path;
+	const srcBadge = (src) => (src && src.startsWith("npm") ? "npm" : src && src.startsWith("git") ? "git" : "");
 
 	const open = (current) => {
 		const list = current[kind] ?? [];
 		const enabledCount = list.filter((x) => x.enabled).length;
 		const items = list.length
-			? list.map((item) => ({
-					label: item.name,
-					sub: [item.description, scopeLabel(item.scope), item.enabled ? "" : t("modal.resourcesDisabled")].filter(Boolean).join(" · "),
-					cls: item.enabled ? "" : "mi-dim",
-					checked: item.enabled,
-					mark: item.enabled ? "" : "✕",
-					data: item,
-				}))
+			? list.map((item) => {
+					const parts = [];
+					if (item.description) parts.push(item.description);
+					if (item.author) parts.push(t("modal.resourcesBy", { name: item.author }));
+					const badge = srcBadge(item.source);
+					if (badge) parts.push(badge);
+					parts.push(scopeLabel(item.scope));
+					if (!item.enabled) parts.push(t("modal.resourcesDisabled"));
+					return {
+						label: item.name,
+						meta: [item.version ? `v${item.version}` : "", item.toggleable ? "" : t("modal.resourcesPackage")].filter(Boolean).join("  "),
+						sub: parts.join("  ·  "),
+						cls: item.enabled ? "" : "mi-dim",
+						checked: item.enabled,
+						mark: item.enabled ? "" : "✕",
+						data: item,
+					};
+				})
 			: [{ label: t("modal.resourcesEmpty"), sub: "", disabled: true, checked: false, data: null }];
 
 		openModal({
 			title: t("modal.resourcesTitle", { kind: t(`modal.resourcesKind.${kind}`), enabled: enabledCount, total: list.length }),
 			searchable: true,
 			items,
+			stacked: true,
 			footer: t("modal.resourcesFooter"),
 			onSelect: (item) => {
 				if (!item.data) return;
+				if (!item.data.toggleable) {
+					onLocked?.(item.data);
+					return false; // package resource: managed via /packages, not toggleable here
+				}
 				void (async () => {
 					const fresh = await onToggle(item.data);
 					if (fresh) open(fresh);

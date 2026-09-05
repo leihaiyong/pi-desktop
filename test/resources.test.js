@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { resourceTogglePattern } from "../src/shared/resources.js";
+import { resourceTogglePattern, isPackageSource } from "../src/shared/resources.js";
 
 describe("resourceTogglePattern", () => {
 	it("skills: relative directory from baseDir (posix)", () => {
@@ -33,5 +33,24 @@ describe("resourceTogglePattern", () => {
 	it("normalizes windows separators to posix", () => {
 		expect(resourceTogglePattern("skill", "D:\\agent\\skills\\my-skill\\SKILL.md", "D:\\agent")).toBe("skills/my-skill");
 		expect(resourceTogglePattern("extension", "D:\\agent\\extensions\\myext.js", "D:\\agent")).toBe("extensions/myext.js");
+	});
+});
+
+describe("isPackageSource", () => {
+	it("true for npm: and git: sources", () => {
+		expect(isPackageSource("npm:@narumitw/pi-goal")).toBe(true);
+		expect(isPackageSource("git:github.com/foo/bar")).toBe(true);
+	});
+
+	it("false for auto/local/path and non-package sources", () => {
+		expect(isPackageSource("auto")).toBe(false);
+		expect(isPackageSource("local")).toBe(false);
+		expect(isPackageSource("path")).toBe(false);
+	});
+
+	it("false for missing / non-string sources", () => {
+		expect(isPackageSource(undefined)).toBe(false);
+		expect(isPackageSource(null)).toBe(false);
+		expect(isPackageSource("")).toBe(false);
 	});
 });

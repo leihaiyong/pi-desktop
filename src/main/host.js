@@ -20,7 +20,7 @@ import { shellConfigForPlatform } from "./platform.js";
 import { groupWorkspaces } from "../shared/workspaces.js";
 import { isValidRect, clampCrop } from "../shared/snip.js";
 import { parseModelsJson, serializeModelsJson } from "../shared/model-config.js";
-import { resourceTogglePattern } from "../shared/resources.js";
+import { resourceTogglePattern, isPackageSource } from "../shared/resources.js";
 
 // Mirrors the SDK's getDefaultSessionDirPath encoding (the function is not
 // exported from the package entry): <agentDir>/sessions/--<cwd, / \ : -> ->--
@@ -51,6 +51,30 @@ function readSkillMeta(filePath) {
 		const name = typeof frontmatter?.name === "string" ? frontmatter.name : undefined;
 		const description = typeof frontmatter?.description === "string" ? frontmatter.description : undefined;
 		return { name, description };
+	} catch {
+		return {};
+	}
+}
+
+/** Read a package's package.json (at `dir`) for name/version/author/description/
+ *  homepage/repository. For npm/git packages `dir` is the package root, so the
+ *  file lives directly there; local/auto extensions usually have none. */
+function readPackageMeta(dir) {
+	if (!dir) return {};
+	const p = path.join(dir, "package.json");
+	if (!fs.existsSync(p)) return {};
+	try {
+		const j = JSON.parse(fs.readFileSync(p, "utf8"));
+		const author = typeof j.author === "string" ? j.author : j.author && typeof j.author.name === "string" ? j.author.name : undefined;
+		const repository = typeof j.repository === "string" ? j.repository : j.repository && typeof j.repository.url === "string" ? j.repository.url : undefined;
+		return {
+			name: typeof j.name === "string" ? j.name : undefined,
+			version: typeof j.version === "string" ? j.version : undefined,
+			author,
+			description: typeof j.description === "string" ? j.description : undefined,
+			homepage: typeof j.homepage === "string" ? j.homepage : undefined,
+			repository,
+		};
 	} catch {
 		return {};
 	}
@@ -596,18 +620,24 @@ export class AgentHost {
 				enabled: r.enabled,
 				scope: r.metadata?.scope,
 				source: r.metadata?.source,
+				toggleable: !isPackageSource(r.metadata?.source),
 			};
 		});
 		const extensions = resolved.extensions.map((r) => {
 			const loaded = loadedExts.get(r.path);
+			const pkg = readPackageMeta(r.metadata?.baseDir);
 			return {
-				name: loaded?.name || path.basename(r.path),
-				description: loaded?.description,
-				version: loaded?.version,
+				name: pkg.name || loaded?.name || path.basename(r.path),
+				description: pkg.description || loaded?.description || "",
+				version: pkg.version || loaded?.version,
+				author: pkg.author,
+				homepage: pkg.homepage,
+				repository: pkg.repository,
 				path: r.path,
 				enabled: r.enabled,
 				scope: r.metadata?.scope,
 				source: r.metadata?.source,
+				toggleable: !isPackageSource(r.metadata?.source),
 			};
 		});
 		const extensionErrors = (loader.getExtensions()?.errors ?? []).map((e) => ({ path: e.path, error: e.error }));
@@ -633,6 +663,9 @@ export class AgentHost {
 		const wanted = norm(filePath);
 		const entry = list.find((r) => norm(r.path) === wanted);
 		if (!entry) throw new Error(t("host.resourceNotFound", { name: path.basename(filePath) }));
+		if (isPackageSource(entry.metadata?.source)) {
+			throw new Error(t("host.resourcePackageLocked"));
+		}
 
 		const pattern = resourceTogglePattern(isSkill ? "skill" : "extension", entry.path, entry.metadata?.baseDir);
 		const override = `!${pattern}`;

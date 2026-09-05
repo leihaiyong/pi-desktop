@@ -28,3 +28,14 @@ export function resourceTogglePattern(type, filePath, baseDir) {
 	}
 	return path.basename(target);
 }
+
+/**
+ * True when a resource was installed from a package (npm: / git: source).
+ * Package resources are gated by the package's own manifest/filter, so a
+ * user-level `!pattern` in the global settings does not actually disable them —
+ * they are managed via /packages instead. The UI uses this to mark such
+ * resources as non-toggleable.
+ */
+export function isPackageSource(source) {
+	return typeof source === "string" && (source.startsWith("npm:") || source.startsWith("git:"));
+}

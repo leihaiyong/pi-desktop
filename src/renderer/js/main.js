@@ -865,11 +865,10 @@ async function runCommand(line) {
 			return true;
 		}
 		case "/resume": {
-			const sessions = await invokeSafe("sessions.list", { all: true });
+			const sessions = await invokeSafe("sessions.list", {});
 				if (sessions) {
 					modals.openSessionSelector({
 						sessions,
-						all: true,
 						cwd: snap?.cwd,
 					onPick: async (s) => {
 						if (s.isCurrent) {

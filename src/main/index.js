@@ -154,6 +154,9 @@ function buildMenu() {
 				{ label: t("menu.thinkingLevel"), accelerator: "CmdOrCtrl+T", click: send("menu:thinking") },
 				{ label: t("menu.theme"), click: send("menu:theme") },
 				{ label: t("menu.settings"), click: send("menu:settings") },
+				{ type: "separator" },
+				{ label: t("menu.extensions"), click: send("menu:extensions") },
+				{ label: t("menu.skills"), click: send("menu:skills") },
 			],
 		},
 		{

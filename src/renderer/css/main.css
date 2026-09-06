@@ -364,13 +364,6 @@ body {
 	background: rgba(200, 64, 92, 0.1);
 }
 
-.ws-sess-del.armed {
-	opacity: 1;
-	color: #fff;
-	background: var(--error);
-	font-size: calc(9px * var(--fs, 1.1429));
-}
-
 /* ---------------- titlebar ---------------- */
 
 #titlebar {

@@ -16,6 +16,7 @@
  */
 import { formatTimestamp } from "../../shared/format.js";
 import { t } from "../../shared/i18n.js";
+import { openConfirmDialog } from "./modals.js";
 
 const invoke = (channel, params) => window.pi.invoke(channel, params ?? {});
 
@@ -272,19 +273,20 @@ function renderSessionRow(ws, s) {
 		.join(" · ");
 	row.append(name, sub);
 	if (!s.isCurrent) {
-		const sKey = `sess:${s.path}`;
 		const del = document.createElement("button");
 		del.className = "ws-sess-del";
 		del.textContent = "🗑";
 		del.title = t("ws.deleteSession");
-		if (isArmed(sKey)) {
-			del.classList.add("armed");
-			del.textContent = "✓";
-			del.title = t("ws.confirmDelete");
-		}
-		del.addEventListener("click", (e) => {
+		del.addEventListener("click", async (e) => {
 			e.stopPropagation();
-			armDelete(sKey, () => deleteSession(ws, s));
+			if (busy) return;
+			const firstMsg = (s.title ?? "").trim().split(/\r?\n/)[0] ?? "";
+			const label = s.name || firstMsg.slice(0, 100) || s.path.split(/[\\/]/).pop();
+			const ok = await openConfirmDialog({
+				title: t("modal.deleteSession"),
+				message: t("ws.deleteSessionQ", { name: label }),
+			});
+			if (ok) await deleteSession(ws, s);
 		});
 		row.append(del);
 	}

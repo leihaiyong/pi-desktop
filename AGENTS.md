@@ -48,7 +48,11 @@ git log --oneline -10       # 查看历史
 | `npm run vendor:hljs` | 重新打包 highlight.js 到 `src/renderer/vendor/` |
 
 - 环境要求：Node ≥ 22.19.0（`package.json` engines 约束）。
-- 修改代码后**必须**跑 `npm test`（当前 104 个用例），全部通过再提交。
+- 修改代码后**必须**跑 `npm test`（当前 236 个用例），全部通过再提交。
+- `test/host-functional.test.js` 是功能测试：mock 掉 electron，用真实 SDK 运行时逐频道驱动
+  `AgentHost` 的 `pi:invoke` IPC 路径（agent 目录沙箱在临时目录）；需要真实 LLM /
+  原生对话框 / 真实屏幕的频道（`session.prompt`、`session.compact`、`models.login`、
+  `system.screenshot.start`）不在此列，SDK 层冒烟见 `test/smoke-host.mjs`。
 
 ## 架构约定（改动前必读）
 

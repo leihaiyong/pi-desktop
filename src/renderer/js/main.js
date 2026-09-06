@@ -8,7 +8,6 @@ const { openModalPublic } = modals;
 import {
 	initWorkspaceSidebar,
 	openWorkspaceSidebar,
-	toggleWorkspaceSidebar,
 	refresh as workspaceSidebarRefresh,
 	workspaceSidebarSetBusy,
 } from "./workspaces.js";
@@ -259,6 +258,7 @@ function initWorkspaceSidebarUI() {
 		onOpenWorkspace: switchToWorkspace,
 		onOpenSession: openSessionInWorkspace,
 		onNewWorkspace: newWorkspace,
+		onError: (msg) => toast(msg, "error"),
 	});
 }
 
@@ -1679,7 +1679,6 @@ async function init() {
 	$("#tb-font-down").addEventListener("click", () => setFontLevel(fontLevel() - 1));
 	$("#tb-font-up").addEventListener("click", () => setFontLevel(fontLevel() + 1));
 	setFontLevel(fontLevel());
-	$("#tb-workspaces").addEventListener("click", () => toggleWorkspaceSidebar());
 	$("#btn-screenshot").addEventListener("click", () => void doScreenshot());
 
 	// workspace sidebar (persistent, collapsible left tree)

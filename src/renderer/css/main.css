@@ -113,6 +113,38 @@ body {
 	border-right: none;
 }
 
+/* thin strip shown on the left edge while the sidebar is collapsed */
+#ws-expand {
+	flex: 0 0 24px;
+	width: 24px;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+	padding-top: 10px;
+	background: var(--bg-alt);
+	border: none;
+	border-right: 1px solid var(--border);
+	color: var(--muted);
+	cursor: pointer;
+}
+
+#ws-expand:hover {
+	color: var(--accent);
+	background: var(--bg-panel);
+}
+
+.ws-expand-caret {
+	font-size: calc(10px * var(--fs, 1.1429));
+	line-height: 1;
+}
+
+.ws-expand-label {
+	writing-mode: vertical-rl;
+	font-size: calc(10px * var(--fs, 1.1429));
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+}
+
 .ws-side-head {
 	display: flex;
 	align-items: center;
@@ -272,6 +304,7 @@ body {
 }
 
 .ws-sess-row {
+	position: relative;
 	display: flex;
 	flex-direction: column;
 	gap: 1px;
@@ -295,6 +328,7 @@ body {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	padding-right: 18px;
 }
 
 .ws-sess-sub {
@@ -305,11 +339,36 @@ body {
 	text-overflow: ellipsis;
 }
 
-/* active state for the titlebar workspaces toggle */
-.tb-btn.active {
-	background: var(--accent);
+.ws-sess-del {
+	position: absolute;
+	top: 4px;
+	right: 4px;
+	background: transparent;
+	border: none;
+	color: var(--muted);
+	cursor: pointer;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	font-size: calc(11px * var(--fs, 1.1429));
+	opacity: 0;
+	border-radius: 4px;
+}
+
+.ws-sess-row:hover .ws-sess-del {
+	opacity: 1;
+}
+
+.ws-sess-del:hover {
+	color: var(--error);
+	background: rgba(200, 64, 92, 0.1);
+}
+
+.ws-sess-del.armed {
+	opacity: 1;
 	color: #fff;
-	border-color: var(--accent);
+	background: var(--error);
+	font-size: calc(9px * var(--fs, 1.1429));
 }
 
 /* ---------------- titlebar ---------------- */

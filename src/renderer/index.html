@@ -25,7 +25,6 @@
 					<button id="tb-new" class="tb-btn" title="New session (Ctrl+N)" data-i18n-title="titlebar.newSession">＋</button>
 					<button id="tb-resume" class="tb-btn" title="Resume session…" data-i18n-title="titlebar.resume">↻</button>
 					<button id="tb-tree" class="tb-btn" title="Session tree" data-i18n-title="titlebar.sessionTree">⑂</button>
-					<button id="tb-workspaces" class="tb-btn" title="Workspaces (open / create / delete)" data-i18n-title="titlebar.workspaces">⌂</button>
 					<button id="tb-model-btn" class="tb-btn" title="Change model (Ctrl+L)" data-i18n-title="titlebar.changeModel">⇄</button>
 					<button id="tb-theme" class="tb-btn" title="Switch to dark theme">☾</button>
 					<button id="tb-font-down" class="tb-btn tb-btn-wide" title="Smaller font" data-i18n-title="titlebar.smallerFont">A−</button>
@@ -35,6 +34,17 @@
 			</header>
 
 			<div id="body-row">
+				<button
+					id="ws-expand"
+					class="ws-expand"
+					title="Workspaces"
+					data-i18n-title="titlebar.workspaces"
+					aria-label="Workspaces"
+					hidden
+				>
+					<span class="ws-expand-caret">▶</span>
+					<span class="ws-expand-label" data-i18n="ws.title"></span>
+				</button>
 				<nav id="ws-sidebar" class="ws-collapsed" aria-label="Workspaces">
 					<div class="ws-side-head">
 						<span class="ws-side-title" data-i18n="ws.title"></span>

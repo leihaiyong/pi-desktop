@@ -23,6 +23,7 @@ const invoke = (channel, params) => window.pi.invoke(channel, params ?? {});
 let onOpenWorkspace = () => {};
 let onOpenSession = () => {};
 let onNewWorkspace = () => {};
+let onError = () => {};
 
 let sidebarEl = null;
 let treeEl = null;
@@ -32,7 +33,7 @@ const sessionsByCwd = {}; // cwd -> session[]
 const loadingCwds = new Set(); // cwds with a fetch in flight
 let busy = false;
 let initialized = false;
-let deleteArmed = null; // cwd of the armed (first-click) delete
+let deleteArmed = null; // { key, run } of the armed (first-click) delete
 let deleteArmedTimer = null;
 
 function isOpen() {
@@ -49,13 +50,13 @@ function currentCwd() {
 export function openWorkspaceSidebar() {
 	if (!sidebarEl) return;
 	sidebarEl.classList.remove("ws-collapsed");
-	updateToggle();
+	updateChrome();
 	void refresh();
 }
 export function closeWorkspaceSidebar() {
 	if (!sidebarEl) return;
 	sidebarEl.classList.add("ws-collapsed");
-	updateToggle();
+	updateChrome();
 }
 export function toggleWorkspaceSidebar() {
 	if (isOpen()) closeWorkspaceSidebar();
@@ -68,17 +69,19 @@ export function workspaceSidebarSetBusy(v) {
 	busy = !!v;
 }
 
-function updateToggle() {
-	const btn = document.getElementById("tb-workspaces");
-	if (btn) btn.classList.toggle("active", isOpen());
+function updateChrome() {
+	// the thin expand strip is only visible while the sidebar is collapsed
+	const btn = document.getElementById("ws-expand");
+	if (btn) btn.hidden = isOpen();
 }
 
 // ---------------------------------------------------------------- init
 
-export function initWorkspaceSidebar({ onOpenWorkspace: a, onOpenSession: b, onNewWorkspace: c }) {
+export function initWorkspaceSidebar({ onOpenWorkspace: a, onOpenSession: b, onNewWorkspace: c, onError: d }) {
 	onOpenWorkspace = a;
 	onOpenSession = b;
 	onNewWorkspace = c;
+	onError = d ?? onError;
 	sidebarEl = document.getElementById("ws-sidebar");
 	treeEl = document.getElementById("ws-tree");
 	if (!sidebarEl || !treeEl) return;
@@ -90,7 +93,10 @@ export function initWorkspaceSidebar({ onOpenWorkspace: a, onOpenSession: b, onN
 		onNewWorkspace();
 	});
 	document.getElementById("ws-collapse").addEventListener("click", closeWorkspaceSidebar);
+	const expandBtn = document.getElementById("ws-expand");
+	if (expandBtn) expandBtn.addEventListener("click", openWorkspaceSidebar);
 
+	updateChrome();
 	void refresh();
 }
 
@@ -112,6 +118,7 @@ export async function refresh() {
 	const todo = [...expanded];
 	await Promise.all(todo.map((cwd) => loadSessions(cwd)));
 	render();
+	updateChrome();
 }
 
 async function loadSessions(cwd) {
@@ -143,10 +150,6 @@ function renderError(msg) {
 export function render() {
 	if (!treeEl) return;
 	treeEl.innerHTML = "";
-	// only clear an armed delete if that workspace is gone (deleted / refreshed away)
-	if (deleteArmed && !workspaces.some((w) => w.cwd === deleteArmed)) {
-		disarmDelete();
-	}
 	if (workspaces.length === 0) {
 		const d = document.createElement("div");
 		d.className = "ws-sess-sub";
@@ -190,18 +193,19 @@ function renderNode(ws) {
 	row.append(caret, name, count);
 
 	if (!ws.isCurrent) {
+		const wKey = `ws:${ws.cwd}`;
 		const del = document.createElement("button");
 		del.className = "ws-del";
 		del.textContent = "🗑";
 		del.title = t("ws.deleteTitle");
-		if (deleteArmed === ws.cwd) {
+		if (isArmed(wKey)) {
 			del.classList.add("armed");
 			del.textContent = "✓";
 			del.title = t("ws.confirmDelete");
 		}
 		del.addEventListener("click", (e) => {
 			e.stopPropagation();
-			armDelete(ws);
+			armDelete(wKey, () => deleteWorkspace(ws));
 		});
 		row.append(del);
 	}
@@ -267,6 +271,23 @@ function renderSessionRow(ws, s) {
 		.filter(Boolean)
 		.join(" · ");
 	row.append(name, sub);
+	if (!s.isCurrent) {
+		const sKey = `sess:${s.path}`;
+		const del = document.createElement("button");
+		del.className = "ws-sess-del";
+		del.textContent = "🗑";
+		del.title = t("ws.deleteSession");
+		if (isArmed(sKey)) {
+			del.classList.add("armed");
+			del.textContent = "✓";
+			del.title = t("ws.confirmDelete");
+		}
+		del.addEventListener("click", (e) => {
+			e.stopPropagation();
+			armDelete(sKey, () => deleteSession(ws, s));
+		});
+		row.append(del);
+	}
 	row.addEventListener("click", (e) => {
 		e.stopPropagation();
 		openSession(ws.cwd, s);
@@ -314,16 +335,20 @@ function disarmDelete() {
 	clearTimeout(deleteArmedTimer);
 }
 
-function armDelete(ws) {
-	if (busy || ws.isCurrent) return;
-	if (deleteArmed === ws.cwd) {
-		// second click within the window: execute
+function isArmed(key) {
+	return !!deleteArmed && deleteArmed.key === key;
+}
+
+// key identifies the armed element (stable across re-renders); run executes on confirm
+function armDelete(key, run) {
+	if (busy) return;
+	if (isArmed(key)) {
 		disarmDelete();
-		void doDelete(ws);
+		void run();
 		return;
 	}
 	disarmDelete();
-	deleteArmed = ws.cwd;
+	deleteArmed = { key, run };
 	clearTimeout(deleteArmedTimer);
 	deleteArmedTimer = setTimeout(() => {
 		disarmDelete();
@@ -332,7 +357,7 @@ function armDelete(ws) {
 	render();
 }
 
-async function doDelete(ws) {
+async function deleteWorkspace(ws) {
 	busy = true;
 	try {
 		await invoke("workspaces.delete", { cwd: ws.cwd });
@@ -340,7 +365,26 @@ async function doDelete(ws) {
 		delete sessionsByCwd[ws.cwd];
 		await refresh();
 	} catch (e) {
-		// refresh to reflect host-side state; the error toast comes from main
+		onError(String(e?.message ?? e));
+		try {
+			await refresh();
+		} catch {
+			/* ignore */
+		}
+	} finally {
+		busy = false;
+	}
+}
+
+async function deleteSession(ws, s) {
+	busy = true;
+	try {
+		await invoke("sessions.delete", { path: s.path });
+		const list = sessionsByCwd[ws.cwd];
+		if (Array.isArray(list)) sessionsByCwd[ws.cwd] = list.filter((x) => x.path !== s.path);
+		await refresh();
+	} catch (e) {
+		onError(String(e?.message ?? e));
 		try {
 			await refresh();
 		} catch {

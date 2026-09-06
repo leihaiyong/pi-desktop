@@ -1101,7 +1101,9 @@ export class AgentHost {
 					throw new Error(t("host.fileTooLarge", { mb: MAX_READ_BASE64_BYTES / 1024 / 1024 }));
 				}
 				const buffer = fs.readFileSync(params.path);
-				const mime = detectSupportedImageMimeTypeFromFile(params.path);
+				// async, returns string|null — must await, otherwise the not-image guard
+				// never fires and the renderer receives a Promise
+				const mime = await detectSupportedImageMimeTypeFromFile(params.path);
 				if (!mime) throw new Error(t("host.notImage"));
 				return { mime, data: buffer.toString("base64") };
 			}
@@ -1491,7 +1493,13 @@ export class AgentHost {
 			doubleEscapeAction: (v) => s.setDoubleEscapeAction(v),
 			treeFilterMode: (v) => s.setTreeFilterMode(v),
 			enableSkillCommands: (v) => s.setEnableSkillCommands(v),
-			externalEditorCommand: (v) => s.setExternalEditorCommand(v),
+			externalEditorCommand: (v) => {
+				// the SDK only exposes getExternalEditorCommand(); persist via the
+				// same public mutation pattern its own setters use
+				s.globalSettings.externalEditor = v;
+				s.markModified("externalEditor");
+				s.save();
+			},
 			defaultThinkingLevel: (v) => s.setDefaultThinkingLevel(v),
 			enabledModels: (v) => s.setEnabledModels(v),
 			httpIdleTimeoutMs: (v) => s.setHttpIdleTimeoutMs(v),

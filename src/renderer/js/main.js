@@ -5,7 +5,13 @@ import { defaultBindings, buildComboIndex, eventToCombo } from "../../shared/key
 import { formatTokens, formatContextUsage, formatCost, formatTimestamp } from "../../shared/format.js";
 import * as modals from "./modals.js";
 const { openModalPublic } = modals;
-import { openWorkspacePicker } from "./workspaces.js";
+import {
+	initWorkspaceSidebar,
+	openWorkspaceSidebar,
+	toggleWorkspaceSidebar,
+	refresh as workspaceSidebarRefresh,
+	workspaceSidebarSetBusy,
+} from "./workspaces.js";
 import { t, getLanguage, setLanguage, SUPPORTED_LANGUAGES } from "../../shared/i18n.js";
 
 // ---------------------------------------------------------------- state
@@ -68,6 +74,7 @@ function applyI18n() {
 	updateTitlebarLabels(state.snapshot);
 	transcript.rebuild();
 	editor.hideCompletion();
+	void workspaceSidebarRefresh();
 	// close any open modal so untranslated content never lingers
 	modals.closeAnyOpenModal();
 }
@@ -191,77 +198,74 @@ function setFontLevel(idx) {
 
 // ---------------------------------------------------------------- workspaces
 
-function openWorkspacePickerUI() {
+// The workspace sidebar lives in the DOM (see index.html #ws-sidebar). These
+// callbacks drive it; after a switch the host:ready -> applySnapshot path
+// refreshes the sidebar and clears the busy lock.
+function switchToWorkspace(wsCwd) {
 	const cwd = state.snapshot?.cwd ?? "";
-	// close the picker (shared by every "opened something" path)
-	const closePicker = () => {
-		const root = $("#modal-root");
-		if (root._keydownHandler) {
-			document.removeEventListener("keydown", root._keydownHandler, { capture: true });
-			root._keydownHandler = null;
+	if (wsCwd === cwd) {
+		workspaceSidebarSetBusy(false);
+		return;
+	}
+	void invokeSafe("system.reconfigure", { cwd: wsCwd }).then((res) => {
+		if (res?.error) {
+			toast(res.error, "error");
+			workspaceSidebarSetBusy(false);
+			return;
 		}
-		root.hidden = true;
-		root.innerHTML = "";
-	};
-	openWorkspacePicker({
-		currentCwd: cwd,
-		onOpenWorkspace: (wsCwd, done) => {
-			// same workspace: nothing to switch to — just close the picker
-			if (wsCwd === cwd) {
-				closePicker();
-				done();
-				return;
-			}
-			void invokeSafe("system.reconfigure", { cwd: wsCwd }).then((res) => {
-				if (res?.error) {
-					toast(res.error, "error");
-					done();
-					return;
-				}
-				// host:ready applies the new snapshot; close the picker
-				closePicker();
-				toast(t("app.workspaceOpened", { cwd: wsCwd }), "success");
-				done();
-			});
-		},
-		onOpenSession: (wsCwd, session, done) => {
-			if (wsCwd === cwd) {
-				void invokeSafe("session.resume", { path: session.path }).then((res) => {
-					if (res?.cancelled) toast(t("app.resumeCancelled"), "warning");
-					closePicker();
-					done();
-				});
-				return;
-			}
-			void invokeSafe("system.reconfigure", { cwd: wsCwd, sessionPath: session.path }).then((res) => {
-				if (res?.error) {
-					toast(res.error, "error");
-					done();
-					return;
-				}
-				closePicker();
-				toast(t("app.workspaceOpened", { cwd: wsCwd }), "success");
-				done();
-			});
-		},
-		onNewWorkspace: () => {
-			void window.pi.invoke("system.pickDirectory").then((dir) => {
-				if (!dir) return;
-				if (dir === cwd) {
-					toast(t("app.alreadyInWorkspace"), "info");
-					return;
-				}
-				void invokeSafe("system.reconfigure", { cwd: dir }).then((res) => {
-					if (res?.error) {
-						toast(res.error, "error");
-						return;
-				}
-					closePicker();
-					toast(`Workspace: ${dir}`, "success");
-				});
-			});
-		},
+		toast(t("app.workspaceOpened", { cwd: wsCwd }), "success");
 	});
+}
+
+function openSessionInWorkspace(wsCwd, session) {
+	const cwd = state.snapshot?.cwd ?? "";
+	if (wsCwd === cwd) {
+		void invokeSafe("session.resume", { path: session.path }).then((res) => {
+			if (res?.cancelled) toast(t("app.resumeCancelled"), "warning");
+			workspaceSidebarSetBusy(false);
+		});
+		return;
+	}
+	void invokeSafe("system.reconfigure", { cwd: wsCwd, sessionPath: session.path }).then((res) => {
+		if (res?.error) {
+			toast(res.error, "error");
+			workspaceSidebarSetBusy(false);
+			return;
+		}
+		toast(t("app.workspaceOpened", { cwd: wsCwd }), "success");
+	});
+}
+
+function newWorkspace() {
+	void window.pi.invoke("system.pickDirectory").then((dir) => {
+		if (!dir) return;
+		const cwd = state.snapshot?.cwd ?? "";
+		if (dir === cwd) {
+			toast(t("app.alreadyInWorkspace"), "info");
+			return;
+		}
+		void invokeSafe("system.reconfigure", { cwd: dir }).then((res) => {
+			if (res?.error) {
+				toast(res.error, "error");
+				return;
+			}
+			toast(`Workspace: ${dir}`, "success");
+		});
+	});
+}
+
+function initWorkspaceSidebarUI() {
+	initWorkspaceSidebar({
+		onOpenWorkspace: switchToWorkspace,
+		onOpenSession: openSessionInWorkspace,
+		onNewWorkspace: newWorkspace,
+	});
+}
+
+// Opens (or re-focuses) the workspace sidebar. Kept as the entry point for the
+// /workspaces command, the menu, and first-run.
+function openWorkspacePickerUI() {
+	openWorkspaceSidebar();
 }
 
 /** Patch the displayed model (and thinking level) after a model change that
@@ -318,6 +322,10 @@ function applySnapshot(snap, { quiet = false } = {}) {
 	} else {
 		state.warning = undefined;
 	}
+
+	// keep the workspace sidebar in sync (current workspace/session + counts)
+	workspaceSidebarSetBusy(false);
+	void workspaceSidebarRefresh();
 }
 
 // ---------------------------------------------------------------- footer/status
@@ -1671,8 +1679,11 @@ async function init() {
 	$("#tb-font-down").addEventListener("click", () => setFontLevel(fontLevel() - 1));
 	$("#tb-font-up").addEventListener("click", () => setFontLevel(fontLevel() + 1));
 	setFontLevel(fontLevel());
-	$("#tb-workspaces").addEventListener("click", () => openWorkspacePickerUI());
+	$("#tb-workspaces").addEventListener("click", () => toggleWorkspaceSidebar());
 	$("#btn-screenshot").addEventListener("click", () => void doScreenshot());
+
+	// workspace sidebar (persistent, collapsible left tree)
+	initWorkspaceSidebarUI();
 
 	// cache editor text for extension getEditorText
 	let lastCached = "";

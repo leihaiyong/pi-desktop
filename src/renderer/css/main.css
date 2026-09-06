@@ -81,6 +81,237 @@ body {
 	height: 100%;
 }
 
+/* ---------------- body row: collapsible workspace sidebar + main column ---------------- */
+
+#body-row {
+	display: flex;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+#main-col {
+	display: flex;
+	flex-direction: column;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+#ws-sidebar {
+	display: flex;
+	flex-direction: column;
+	flex: 0 0 268px;
+	width: 268px;
+	min-width: 0;
+	border-right: 1px solid var(--border);
+	background: var(--bg-alt);
+	overflow: hidden;
+}
+
+#ws-sidebar.ws-collapsed {
+	flex: 0 0 0;
+	width: 0;
+	border-right: none;
+}
+
+.ws-side-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 8px 10px 6px;
+	flex: 0 0 auto;
+}
+
+.ws-side-title {
+	font-size: calc(11px * var(--fs, 1.1429));
+	font-weight: 700;
+	text-transform: uppercase;
+	letter-spacing: 0.07em;
+	color: var(--muted);
+	white-space: nowrap;
+}
+
+.ws-side-actions {
+	display: flex;
+	gap: 4px;
+}
+
+.ws-icon-btn {
+	background: transparent;
+	border: 1px solid transparent;
+	color: var(--muted);
+	border-radius: 5px;
+	width: 22px;
+	height: 20px;
+	cursor: pointer;
+	font-size: calc(12px * var(--fs, 1.1429));
+	line-height: 1;
+	padding: 0;
+}
+
+.ws-icon-btn:hover {
+	background: var(--bg-panel);
+	color: var(--fg);
+	border-color: var(--border);
+}
+
+/* workspace tree */
+.ws-tree {
+	overflow-y: auto;
+	flex: 1 1 auto;
+	padding: 2px 6px 12px;
+}
+
+.ws-node {
+	margin-bottom: 2px;
+}
+
+.ws-ws-row {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	padding: 5px 6px;
+	border-radius: 6px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.ws-ws-row:hover {
+	background: var(--bg-panel);
+}
+
+.ws-ws-row.is-current {
+	background: var(--bg-panel);
+	outline: 1px solid var(--accent);
+}
+
+.ws-caret {
+	background: transparent;
+	border: none;
+	color: var(--muted);
+	cursor: pointer;
+	width: 14px;
+	height: 14px;
+	padding: 0;
+	font-size: calc(9px * var(--fs, 1.1429));
+	flex: 0 0 auto;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ws-caret:hover {
+	color: var(--fg);
+}
+
+.ws-ws-name {
+	flex: 1 1 auto;
+	font-size: calc(13px * var(--fs, 1.1429));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ws-ws-row.is-current .ws-ws-name {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.ws-ws-count {
+	flex: 0 0 auto;
+	font-size: calc(10px * var(--fs, 1.1429));
+	color: var(--muted);
+	background: var(--bg-alt);
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	padding: 0 5px;
+}
+
+.ws-del {
+	flex: 0 0 auto;
+	background: transparent;
+	border: none;
+	color: var(--muted);
+	cursor: pointer;
+	width: 18px;
+	height: 18px;
+	padding: 0;
+	font-size: calc(11px * var(--fs, 1.1429));
+	opacity: 0;
+	border-radius: 4px;
+}
+
+.ws-ws-row:hover .ws-del {
+	opacity: 1;
+}
+
+.ws-del:hover {
+	color: var(--error);
+	background: rgba(200, 64, 92, 0.1);
+}
+
+.ws-del.armed {
+	opacity: 1;
+	color: #fff;
+	background: var(--error);
+	font-size: calc(9px * var(--fs, 1.1429));
+}
+
+/* sessions nested under a workspace */
+.ws-sess-list {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	margin: 1px 0 3px 15px;
+	padding-left: 8px;
+	border-left: 1px solid var(--border);
+}
+
+.ws-sess-list.collapsed {
+	display: none;
+}
+
+.ws-sess-row {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	padding: 4px 6px;
+	border-radius: 5px;
+	cursor: pointer;
+	user-select: none;
+}
+
+.ws-sess-row:hover {
+	background: var(--bg-panel);
+}
+
+.ws-sess-row.is-current {
+	background: var(--bg-panel);
+	outline: 1px solid var(--accent);
+}
+
+.ws-sess-name {
+	font-size: calc(12px * var(--fs, 1.1429));
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.ws-sess-sub {
+	font-size: calc(10px * var(--fs, 1.1429));
+	color: var(--muted);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* active state for the titlebar workspaces toggle */
+.tb-btn.active {
+	background: var(--accent);
+	color: #fff;
+	border-color: var(--accent);
+}
+
 /* ---------------- titlebar ---------------- */
 
 #titlebar {

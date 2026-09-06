@@ -34,9 +34,21 @@
 				</div>
 			</header>
 
-			<main id="transcript" tabindex="-1"></main>
+			<div id="body-row">
+				<nav id="ws-sidebar" class="ws-collapsed" aria-label="Workspaces">
+					<div class="ws-side-head">
+						<span class="ws-side-title" data-i18n="ws.title"></span>
+						<span class="ws-side-actions">
+							<button id="ws-new" class="ws-icon-btn" title="New workspace" data-i18n-title="titlebar.workspacesNew">＋</button>
+							<button id="ws-collapse" class="ws-icon-btn" title="Collapse" data-i18n-title="titlebar.workspacesCollapse">◀</button>
+						</span>
+					</div>
+					<div id="ws-tree" class="ws-tree"></div>
+				</nav>
+				<div id="main-col">
+				<main id="transcript" tabindex="-1"></main>
 
-			<section id="dock">
+				<section id="dock">
 				<div id="pending" hidden></div>
 				<div id="status-line" hidden></div>
 				<div id="widgets-above" hidden></div>
@@ -73,6 +85,8 @@
 					<div id="footer-info" class="footer-half footer-info"></div>
 				</footer>
 			</section>
+				</div>
+			</div>
 		</div>
 
 		<div id="modal-root" hidden></div>

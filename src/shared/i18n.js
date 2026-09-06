@@ -56,7 +56,9 @@ const MESSAGES = {
 		"titlebar.newSession": "New session (Ctrl+N)",
 		"titlebar.resume": "Resume session…",
 		"titlebar.sessionTree": "Session tree",
-		"titlebar.workspaces": "Workspaces (open / create / delete)",
+		"titlebar.workspaces": "Toggle workspaces sidebar",
+		"titlebar.workspacesNew": "New workspace",
+		"titlebar.workspacesCollapse": "Collapse sidebar",
 		"titlebar.changeModel": "Change model (Ctrl+L)",
 		"titlebar.smallerFont": "Smaller font",
 		"titlebar.largerFont": "Larger font",
@@ -347,6 +349,9 @@ const MESSAGES = {
 		"ws.deleteConfirm": "Delete {count} of {name}? Click again to confirm (Esc cancels)",
 		"ws.detailTitle": "{name} — sessions",
 		"ws.msgCount": "{n} msg",
+		"ws.noWorkspaces": "No workspaces",
+		"ws.wsRowHint": "Click to expand · double-click to open",
+		"ws.toggle": "Show / hide sessions",
 
 		// ---- screenshot ----
 		"snap.previewTitle": "Screenshot preview · {w}×{h}",
@@ -456,7 +461,9 @@ const MESSAGES = {
 		"titlebar.newSession": "新建会话 (Ctrl+N)",
 		"titlebar.resume": "恢复会话…",
 		"titlebar.sessionTree": "会话树",
-		"titlebar.workspaces": "工作区（打开 / 新建 / 删除）",
+		"titlebar.workspaces": "工作区侧栏（展开 / 收起）",
+		"titlebar.workspacesNew": "新建工作区",
+		"titlebar.workspacesCollapse": "收起侧栏",
 		"titlebar.changeModel": "更换模型 (Ctrl+L)",
 		"titlebar.smallerFont": "缩小字体",
 		"titlebar.largerFont": "放大字体",
@@ -747,6 +754,9 @@ const MESSAGES = {
 		"ws.deleteConfirm": "删除 {name} 的{count}？再次点击确认（Esc 取消）",
 		"ws.detailTitle": "{name} — 会话",
 		"ws.msgCount": "{n} 条消息",
+		"ws.noWorkspaces": "没有工作区",
+		"ws.wsRowHint": "点击展开 · 双击打开",
+		"ws.toggle": "显示 / 隐藏会话",
 
 		// ---- 截图 ----
 		"snap.previewTitle": "截图预览 · {w}×{h}",

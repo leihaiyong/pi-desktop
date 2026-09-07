@@ -2,6 +2,56 @@
 
 All notable changes to Pi Desktop are documented here.
 
+## [0.3.0] — 2026-09-07
+
+### Added
+
+- **Workspace sidebar** — a collapsible tree in the left sidebar to manage
+  workspaces and sessions at a glance:
+  - Workspaces grouped by directory, most-recently-used first, with session
+    counts; the current workspace is pinned at the top
+  - Expand a workspace (▸ strip) to list its sessions — title, message count,
+    updated time; click to switch to any session
+  - Delete a single session (with a confirmation dialog) or delete an entire
+    workspace in one action
+  - Collapsed via the sidebar ◀ button or the titlebar ⌂ button
+- **Extensions & Skills manager** — browse and manage every discovered
+  extension and skill (enabled *and* disabled), not just the loaded set:
+  - New `/extensions` and `/skills` commands, plus an “Extensions & Skills”
+    entry in the Session menu
+  - Enable / disable with one click (writes the matching `!pattern` to the
+    right settings scope and reloads); package-installed resources are marked
+    non-toggleable
+  - Shows package metadata (version, author, homepage, repository) and source
+    scope (project / user / package)
+- **Working indicator** — a status hint while awaiting the model's first
+  response; the spinner now follows the streaming output instead of sitting
+  at the prompt
+
+### Fixed
+
+- `/resume` listed sessions from *every* project; it now lists only the
+  current workspace's sessions
+- Export: the picker now targets a directory, canceling the picker no longer
+  counts as a pick, bare `/export` opened no picker at all, and HTML export
+  no longer opens the file browser after saving (matches JSONL)
+- `/model` selector stayed open after picking and the titlebar kept the stale
+  model name; it now closes and refreshes
+- Titlebar shows unnamed sessions as `(unnamed)`, matching the session info
+  panel
+- Image attachment: the file-type check never ran (the async MIME detector
+  was never awaited), so non-image files passed through and the renderer
+  received a Promise instead of the MIME type
+- Settings ▸ `externalEditorCommand` could not be saved (called a setter the
+  SDK does not expose); it now persists like every other setting
+
+### Quality
+
+- New functional test suite: 76 tests drive every `pi:invoke` IPC channel
+  through the real Electron-main code path with a real SDK runtime (agent
+  directory sandboxed to a temp dir), plus tests for both preload bridges —
+  total 104 → 236 test cases; the suite surfaced both bugs above
+
 ## [0.2.0] — 2026-09-03
 
 ### Added

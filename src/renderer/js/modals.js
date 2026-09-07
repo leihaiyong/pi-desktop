@@ -947,20 +947,25 @@ export function openThinkingSelector({ levels, current, onPick }) {
 } 
 
 export function openScopedModelsSelector({ models, current = [], onSave }) {
-	// toggle list: every known model, checked when currently in the scope.
-	// Enter toggles a model (reopening the modal with the updated state);
-	// Ctrl+S saves the checked set as "provider/id" patterns.
+	// toggle list: only models with active auth are shown; the checkmark marks
+	// which are currently in the scope. Enter toggles a model; Ctrl+S saves
+	// the checked set as "provider/id" patterns. A scoped model that lost auth
+	// stays in `checked` (the scope) but is hidden from the list.
 	const currentKeys = new Set(current.map((m) => `${m.provider}/${m.id}`));
 	let checked = new Set(currentKeys);
+	const available = (models ?? []).filter((m) => m.available);
 
 	const open = () => {
-		const items = models.map((m) => ({
-			label: m.name,
-			sub: `${m.provider}/${m.id}${m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}k ctx` : ""}`,
-			checked: checked.has(`${m.provider}/${m.id}`),
-			mark: checked.has(`${m.provider}/${m.id}`) ? "✓" : "",
-			data: m,
-		}));
+		const items = available.map((m) => {
+			const key = `${m.provider}/${m.id}`;
+			const on = checked.has(key);
+			return {
+				label: on ? `✓ ${m.name}` : m.name,
+				sub: `${m.provider}/${m.id}${m.contextWindow ? ` · ${Math.round(m.contextWindow / 1000)}k ctx` : ""}`,
+				mark: "",
+				data: m,
+			};
+		});
 		openModal({
 			title: t("modal.scopedModelsTitle", { n: checked.size }),
 			searchable: true,

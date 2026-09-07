@@ -1,6 +1,6 @@
 import { escapeHtml } from "./markdown.js";
 import { formatTimestamp, formatTokens } from "../../shared/format.js";
-import { flattenTree } from "../../shared/tree.js";
+import { flattenTree, countBranches } from "../../shared/tree.js";
 import { comboLabel } from "../../shared/keys.js";
 import { t, tCmd, SUPPORTED_LANGUAGES } from "../../shared/i18n.js";
 import { upsertProvider, removeProvider, stripUndefined, updateCostFields } from "../../shared/model-config.js";
@@ -358,9 +358,13 @@ export function openSessionSelector({ sessions, cwd, all = false, onPick, onRena
 	});
 }
 
-export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, filter = "default" }) {
-	const rows = flattenTree(tree.entries, tree.leafId);
-	const visibleRows = rows.filter((row) => {
+export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, filter = "default", reloadTree }) {
+	// Mutable state so the tree can refresh in place after a fork/clone/navigate.
+	let entries = tree.entries ?? [];
+	let leafId = tree.leafId;
+	let visibleRows = [];
+	let selected = 0;
+	const matchFilter = (row) => {
 		switch (filter) {
 			case "user-only":
 				return row.role === "user";
@@ -373,26 +377,49 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 			default:
 				return !["model", "thinking", "session", "label", "custom"].includes(row.type);
 		}
-	});
+	};
+	// A linear session (no branches) renders as a flat list; only a branched
+	// tree uses depth indentation, so a long straight conversation isn't drawn
+	// as a deep staircase.
+	const useTree = () => countBranches(entries) > 0;
+	const computeVisible = () => flattenTree(entries, leafId).filter(matchFilter);
 	openModal({
 		title: t("modal.sessionTreeTitle"),
 		width: "wide",
 		searchable: false,
-		renderBody: (body, { close }) => {
+		renderBody: (body) => {
 			body.innerHTML = "";
-			let selected = visibleRows.findIndex((r) => r.isLeaf);
-			if (selected < 0) selected = visibleRows.length - 1;
+
+			// action toolbar: navigate / fork / branch / label
+			const toolbar = document.createElement("div");
+			toolbar.className = "tree-toolbar";
+			const btn = (icon, title, kind) => {
+				const b = document.createElement("button");
+				b.className = "tree-act";
+				b.textContent = icon;
+				b.title = title;
+				b.addEventListener("click", () => void act(kind));
+				return b;
+			};
+			toolbar.append(
+				btn("→", t("modal.treeNav"), "navigate"),
+				btn("⑂", t("modal.treeFork"), "fork"),
+				btn("⑃", t("modal.treeBranch"), "clone"),
+				btn("✎", t("modal.setLabel"), "label"),
+			);
+			body.appendChild(toolbar);
+
 			const listEl = document.createElement("div");
-			listEl.style.overflowY = "auto";
-			listEl.style.maxHeight = "50vh";
+			listEl.className = "tree-list";
 			body.appendChild(listEl);
 
 			function render() {
+				const asTree = useTree();
 				listEl.innerHTML = "";
 				visibleRows.forEach((row, i) => {
 					const div = document.createElement("div");
 					div.className = "tree-row" + (i === selected ? " selected" : "") + (row.isLeaf ? " leaf" : "");
-					const indent = "&nbsp;".repeat(row.depth * 2 + 1);
+					const indent = "\u00A0".repeat((asTree ? row.depth : 0) * 2 + 1);
 					div.innerHTML = `<span class="t-depth">${indent}${row.isLeaf ? "▶ " : ""}</span><span class="t-role">${escapeHtml(row.role ?? row.type)}</span><span class="t-label">${
 						row.label ? `[${escapeHtml(row.label)}] ` : ""
 					}</span><span class="t-text"></span><span class="t-time">${row.timestamp ? formatTimestamp(row.timestamp).slice(5) : ""}</span>`;
@@ -401,22 +428,42 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 						selected = i;
 						render();
 					});
+					div.addEventListener("dblclick", () => void act("navigate"));
 					listEl.appendChild(div);
 				});
 			}
-			render();
+
+			function selectLeaf() {
+				selected = visibleRows.findIndex((r) => r.isLeaf);
+				if (selected < 0) selected = visibleRows.length - 1;
+				if (selected < 0) selected = 0;
+			}
 
 			async function act(kind) {
 				const row = visibleRows[selected];
 				if (!row) return;
-				if (kind === "navigate") onNavigate(row);
-				if (kind === "fork") onFork?.(row);
-				if (kind === "clone") onClone?.(row);
-				if (kind === "label") {
+				if (kind === "navigate") await onNavigate(row);
+				else if (kind === "fork") await onFork?.(row);
+				else if (kind === "clone") await onClone?.(row);
+				else if (kind === "label") {
 					const label = await openInputDialog({ title: t("modal.setLabel"), initial: row.label ?? "" });
-					if (label !== undefined) onLabel(row, label);
+					if (label !== undefined) await onLabel?.(row, label);
+				}
+				if (kind !== "label" && typeof reloadTree === "function") {
+					const fresh = await reloadTree();
+					if (fresh) {
+						entries = fresh.entries ?? [];
+						leafId = fresh.leafId;
+						visibleRows = computeVisible();
+						selectLeaf();
+						render();
+					}
 				}
 			}
+
+			visibleRows = computeVisible();
+			selectLeaf();
+			render();
 
 			body._handleKey = (e) => {
 				if (e.key === "ArrowDown") {
@@ -431,24 +478,26 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 					render();
 					return true;
 				}
-				if (e.key === "Enter") {
-					e.preventDefault();
-					act("navigate");
-					return true;
-				}
+				// Ctrl+Enter (fork) must be tested before plain Enter (navigate),
+				// otherwise Enter always wins and fork is unreachable.
 				if (e.ctrlKey && e.key === "Enter") {
 					e.preventDefault();
-					act("fork");
+					void act("fork");
+					return true;
+				}
+				if (e.key === "Enter") {
+					e.preventDefault();
+					void act("navigate");
 					return true;
 				}
 				if (e.shiftKey && (e.key === "l" || e.key === "L")) {
 					e.preventDefault();
-					act("label");
+					void act("label");
 					return true;
 				}
 				if (e.ctrlKey && (e.key === "c" || e.key === "C")) {
 					e.preventDefault();
-					act("clone");
+					void act("clone");
 					return true;
 				}
 			};

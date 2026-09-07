@@ -1298,6 +1298,41 @@ body {
 	color: var(--accent);
 }
 
+.tree-list {
+	overflow-y: auto;
+	max-height: 52vh;
+	margin-top: 2px;
+}
+
+.tree-toolbar {
+	display: flex;
+	gap: 6px;
+	padding: 2px 4px 8px;
+	border-bottom: 1px solid var(--border);
+	margin-bottom: 6px;
+}
+
+.tree-act {
+	background: var(--bg-alt);
+	border: 1px solid var(--border);
+	color: var(--fg);
+	border-radius: 6px;
+	min-width: 36px;
+	height: 26px;
+	font-size: 14px;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0 9px;
+	transition: background .1s;
+}
+
+.tree-act:hover {
+	background: var(--bg-panel);
+	border-color: var(--accent);
+}
+
 .tree-row {
 	display: flex;
 	gap: 6px;

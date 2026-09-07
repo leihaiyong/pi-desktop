@@ -1254,6 +1254,7 @@ async function openTree() {
 		onLabel: async (row, label) => {
 			await invokeSafe("sessions.setLabel", { entryId: row.id, label: label || undefined });
 		},
+		reloadTree: async () => (await invokeSafe("sessions.tree")) ?? null,
 	});
 }
 

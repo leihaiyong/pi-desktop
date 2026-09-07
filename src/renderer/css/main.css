@@ -187,6 +187,104 @@ body {
 	border-color: var(--border);
 }
 
+.ws-sort {
+	min-width: 26px;
+	font-size: calc(11px * var(--fs, 1.1429));
+}
+
+/* startup workspace picker modal */
+.ws-pick-bar {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 2px 8px;
+	border-bottom: 1px solid var(--border);
+	margin-bottom: 6px;
+}
+
+.ws-pick-sort {
+	background: var(--bg-alt);
+	border: 1px solid var(--border);
+	color: var(--muted);
+	border-radius: 5px;
+	height: 24px;
+	padding: 0 10px;
+	font-size: calc(11px * var(--fs, 1.1429));
+	cursor: pointer;
+	transition: background .1s, color .1s, border-color .1s;
+}
+
+.ws-pick-sort:hover {
+	background: var(--bg-panel);
+	color: var(--fg);
+}
+
+.ws-pick-sort.active {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #fff;
+}
+
+.ws-pick-list {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.ws-pick-row {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 6px 8px;
+	border-radius: 6px;
+	cursor: pointer;
+	border: 1px solid transparent;
+}
+
+.ws-pick-row:hover {
+	background: var(--bg-alt);
+}
+
+.ws-pick-row.selected {
+	background: var(--bg-alt);
+	border-color: var(--accent);
+}
+
+.ws-pick-row.is-current .wsp-name {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.wsp-name {
+	flex: 0 0 auto;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.wsp-meta {
+	flex: 0 0 auto;
+	color: var(--muted);
+	font-size: calc(11px * var(--fs, 1.1429));
+	white-space: nowrap;
+}
+
+.wsp-path {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--muted);
+	font-size: calc(11px * var(--fs, 1.1429));
+	text-align: right;
+	font-family: Consolas, monospace;
+}
+
+.ws-pick-empty {
+	padding: 16px 8px;
+	color: var(--muted);
+	text-align: center;
+}
+
 /* workspace tree */
 .ws-tree {
 	overflow-y: auto;

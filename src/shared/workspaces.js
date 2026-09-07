@@ -14,15 +14,37 @@ export function workspaceName(cwd) {
 	return parts[parts.length - 1] || String(cwd ?? "");
 }
 
+// Available orderings for the workspace list.
+export const WORKSPACE_SORTS = ["recent", "name"];
+
 /**
- * Group session infos by cwd into workspaces, most recently used first.
+ * Sort workspaces. The live workspace is always pinned first.
+ *  - "recent" (default): most recently used first (lastModified, newest first)
+ *  - "name": alphabetical (case-insensitive, natural numeric order)
+ */
+export function sortWorkspaces(list, mode = "recent") {
+	const arr = [...(list ?? [])];
+	arr.sort((a, b) => {
+		if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
+		if (mode === "name") {
+			const c = a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+			return c !== 0 ? c : b.lastModified - a.lastModified;
+		}
+		return b.lastModified - a.lastModified;
+	});
+	return arr;
+}
+
+/**
+ * Group session infos by cwd into workspaces.
  *
  * @param sessions rows like { cwd, modified, messageCount } (SDK SessionInfo)
  * @param opts.currentCwd the live workspace; pinned first even without sessions
- * @param opts.limit max workspaces to return (newest first)
+ * @param opts.sort "recent" (last used first, default) or "name" (alphabetical)
+ * @param opts.limit max workspaces to return (in the chosen order)
  * @returns [{ cwd, name, isCurrent, sessionCount, lastModified }]
  */
-export function groupWorkspaces(sessions, { currentCwd = "", limit = 100 } = {}) {
+export function groupWorkspaces(sessions, { currentCwd = "", sort = "recent", limit = 100 } = {}) {
 	const byCwd = new Map();
 	for (const s of sessions ?? []) {
 		const cwd = s.cwd ? String(s.cwd) : "";
@@ -55,9 +77,5 @@ export function groupWorkspaces(sessions, { currentCwd = "", limit = 100 } = {})
 		});
 	}
 
-	list.sort((a, b) => {
-		if (a.isCurrent !== b.isCurrent) return a.isCurrent ? -1 : 1;
-		return b.lastModified - a.lastModified;
-	});
-	return list.slice(0, limit);
+	return sortWorkspaces(list, sort).slice(0, limit);
 }

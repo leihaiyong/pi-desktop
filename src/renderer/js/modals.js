@@ -1,6 +1,7 @@
 import { escapeHtml } from "./markdown.js";
 import { formatTimestamp, formatTokens } from "../../shared/format.js";
 import { flattenTree, countBranches } from "../../shared/tree.js";
+import { sortWorkspaces, WORKSPACE_SORTS } from "../../shared/workspaces.js";
 import { comboLabel } from "../../shared/keys.js";
 import { t, tCmd, SUPPORTED_LANGUAGES } from "../../shared/i18n.js";
 import { upsertProvider, removeProvider, stripUndefined, updateCostFields } from "../../shared/model-config.js";
@@ -355,6 +356,126 @@ export function openSessionSelector({ sessions, cwd, all = false, onPick, onRena
 				return true;
 			}
 		},
+	});
+}
+
+// Startup workspace chooser: a modal that asks the user to open an existing
+// workspace or create a new one. The list is sorted (most-recently-used or
+// by name) and the live workspace is pinned/highlighted.
+export function openWorkspacePicker({ workspaces, onPick, onNew, onSortChange, initialSort = "recent" }) {
+	let sort = WORKSPACE_SORTS.includes(initialSort) ? initialSort : "recent";
+	let selected = 0;
+	const ordered = () => sortWorkspaces(workspaces ?? [], sort);
+	openModal({
+		title: t("ws.chooseTitle"),
+		width: "wide",
+		searchable: false,
+		renderBody: (body, { close }) => {
+			const rows0 = ordered();
+			selected = Math.max(0, rows0.findIndex((w) => w.isCurrent));
+			function render() {
+				body.innerHTML = "";
+				const rows = ordered();
+				// toolbar: sort toggle (left) + new workspace (right)
+				const bar = document.createElement("div");
+				bar.className = "ws-pick-bar";
+				for (const [mode, key] of [["recent", "ws.sortRecent"], ["name", "ws.sortName"]]) {
+					const b = document.createElement("button");
+					b.className = "ws-pick-sort" + (sort === mode ? " active" : "");
+					b.textContent = t(key);
+					b.addEventListener("click", () => {
+						if (sort === mode) return;
+						sort = mode;
+						onSortChange?.(mode);
+						render();
+					});
+					bar.appendChild(b);
+				}
+				const spacer = document.createElement("span");
+				spacer.className = "tree-tspacer";
+				bar.appendChild(spacer);
+				const newBtn = document.createElement("button");
+				newBtn.className = "tree-act";
+				newBtn.textContent = "＋";
+				newBtn.title = t("ws.new");
+				newBtn.addEventListener("click", () => onNew?.());
+				bar.appendChild(newBtn);
+				body.appendChild(bar);
+
+				const listEl = document.createElement("div");
+				listEl.className = "ws-pick-list";
+				rows.forEach((ws, i) => {
+					const row = document.createElement("div");
+					row.className = "ws-pick-row" + (i === selected ? " selected" : "") + (ws.isCurrent ? " is-current" : "");
+					const name = document.createElement("span");
+					name.className = "wsp-name";
+					name.textContent = (ws.isCurrent ? "● " : "") + ws.name;
+					const meta = document.createElement("span");
+					meta.className = "wsp-meta";
+					meta.textContent = [
+						ws.sessionCount ? `${ws.sessionCount} ${t("ws.sessions")}` : "",
+						ws.lastModified ? formatTimestamp(ws.lastModified) : "",
+					]
+						.filter(Boolean)
+						.join(" · ");
+					const p = document.createElement("span");
+					p.className = "wsp-path";
+					p.textContent = ws.cwd;
+					row.append(name, meta, p);
+					row.addEventListener("click", () => {
+						selected = i;
+						close();
+						onPick?.(ws);
+					});
+					row.addEventListener("mousemove", () => {
+						if (selected !== i) {
+							selected = i;
+							render();
+						}
+					});
+					listEl.appendChild(row);
+				});
+				if (rows.length === 0) {
+					const d = document.createElement("div");
+					d.className = "ws-pick-empty";
+					d.textContent = t("ws.noWorkspaces");
+					listEl.appendChild(d);
+				}
+				body.appendChild(listEl);
+				listEl.querySelector(".ws-pick-row.selected")?.scrollIntoView({ block: "nearest" });
+			}
+			render();
+			body._handleKey = (e) => {
+				const rows = ordered();
+				if (!rows.length) return false;
+				if (e.key === "ArrowDown") {
+					e.preventDefault();
+					selected = Math.min(rows.length - 1, selected + 1);
+					render();
+					return true;
+				}
+				if (e.key === "ArrowUp") {
+					e.preventDefault();
+					selected = Math.max(0, selected - 1);
+					render();
+					return true;
+				}
+				if (e.key === "Enter") {
+					e.preventDefault();
+					close();
+					onPick?.(rows[selected]);
+					return true;
+				}
+				if (e.key === "n" || e.key === "N") {
+					e.preventDefault();
+					onNew?.();
+					return true;
+				}
+				return false;
+			};
+		},
+		onKey: (e) => modalRoot().querySelector(".modal-body")?._handleKey?.(e),
+		footer: t("ws.chooseFooter"),
 	});
 }
 

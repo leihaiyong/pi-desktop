@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { groupWorkspaces, workspaceName } from "../src/shared/workspaces.js";
+import { groupWorkspaces, workspaceName, sortWorkspaces, WORKSPACE_SORTS } from "../src/shared/workspaces.js";
 
 const t = (min) => new Date(Date.UTC(2026, 0, 1, 0, min)).toISOString();
 
@@ -65,5 +65,47 @@ describe("groupWorkspaces", () => {
 	it("handles empty input", () => {
 		expect(groupWorkspaces([], { currentCwd: "" })).toEqual([]);
 		expect(groupWorkspaces(null, { currentCwd: "X:\\y" })).toHaveLength(1);
+	});
+});
+
+describe("sortWorkspaces", () => {
+	const ws = [
+		{ cwd: "D:\\beta", name: "beta", isCurrent: false, sessionCount: 1, lastModified: 300 },
+		{ cwd: "D:\\alpha", name: "alpha", isCurrent: false, sessionCount: 2, lastModified: 100 },
+		{ cwd: "D:\\gamma", name: "gamma", isCurrent: false, sessionCount: 1, lastModified: 200 },
+	];
+
+	it("recent: newest lastModified first", () => {
+		expect(sortWorkspaces(ws, "recent").map((w) => w.name)).toEqual(["beta", "gamma", "alpha"]);
+	});
+
+	it("name: alphabetical", () => {
+		expect(sortWorkspaces(ws, "name").map((w) => w.name)).toEqual(["alpha", "beta", "gamma"]);
+	});
+
+	it("pins the current workspace first in both modes", () => {
+		const withCurrent = ws.map((w) => (w.name === "gamma" ? { ...w, isCurrent: true } : w));
+		expect(sortWorkspaces(withCurrent, "recent").map((w) => w.name)).toEqual(["gamma", "beta", "alpha"]);
+		expect(sortWorkspaces(withCurrent, "name").map((w) => w.name)).toEqual(["gamma", "alpha", "beta"]);
+	});
+
+	it("exposes the sort modes", () => {
+		expect(WORKSPACE_SORTS).toEqual(["recent", "name"]);
+	});
+});
+
+describe("groupWorkspaces sort option", () => {
+	const sessions = [
+		{ cwd: "D:\\beta", modified: "2026-01-01T00:03:00Z", messageCount: 1 },
+		{ cwd: "D:\\alpha", modified: "2026-01-01T00:01:00Z", messageCount: 1 },
+		{ cwd: "D:\\gamma", modified: "2026-01-01T00:02:00Z", messageCount: 1 },
+	];
+
+	it("sorts by name when requested", () => {
+		expect(groupWorkspaces(sessions, { currentCwd: "", sort: "name" }).map((w) => w.name)).toEqual(["alpha", "beta", "gamma"]);
+	});
+
+	it("defaults to most-recently-used", () => {
+		expect(groupWorkspaces(sessions, { currentCwd: "" }).map((w) => w.name)).toEqual(["beta", "gamma", "alpha"]);
 	});
 });

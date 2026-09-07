@@ -3,6 +3,7 @@ import { resolveThemeToCssVars } from "../shared/theme.js";
 import { t, setLanguage as setUiLanguage, getLanguage as getUiLanguage } from "../shared/i18n.js";
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import { execFile } from "node:child_process";
 import {
 	ModelRuntime,
@@ -242,6 +243,22 @@ export class AgentHost {
 		this.#shuttingDown = true;
 	}
 
+	/**
+	 * Most recently used real workspace (a cwd with at least one session on
+	 * disk), newest first. Used as the startup default instead of a throwaway
+	 * process.cwd(); returns null when there is no prior workspace.
+	 */
+	static async lastUsedCwd() {
+		try {
+			const sessions = await SessionManager.listAll();
+			const workspaces = groupWorkspaces(sessions, { currentCwd: "", sort: "recent" });
+			const top = workspaces.find((w) => w.sessionCount > 0);
+			return top?.cwd ?? null;
+		} catch {
+			return null;
+		}
+	}
+
 	get session() {
 		return this.#runtime?.session;
 	}
@@ -265,6 +282,12 @@ export class AgentHost {
 		this.registerIpc();
 		this.#explicitCwd = explicitCwd;
 		this.#modelRuntime = await ModelRuntime.create();
+		if (!cwd) {
+			// No explicit workspace on the command line: default to the most
+			// recently used one (never a throwaway process.cwd()). registerIpc
+			// already ran above, so the renderer can invoke while this resolves.
+			cwd = (await AgentHost.lastUsedCwd()) ?? os.homedir();
+		}
 
 		const initialServices = await createAgentSessionServices({
 			cwd,
@@ -933,7 +956,10 @@ export class AgentHost {
 			// --- workspaces (a workspace is a directory / agent cwd) ---
 			case "workspaces.list": {
 				const sessions = await SessionManager.listAll();
-				return groupWorkspaces(sessions, { currentCwd: this.runtime?.cwd ?? "" });
+				return groupWorkspaces(sessions, {
+					currentCwd: this.runtime?.cwd ?? "",
+					sort: params?.sort === "name" ? "name" : "recent",
+				});
 			}
 			case "workspaces.delete": {
 				const cwd = params.cwd ? path.resolve(params.cwd) : "";

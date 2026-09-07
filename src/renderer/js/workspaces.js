@@ -16,6 +16,7 @@
  */
 import { formatTimestamp } from "../../shared/format.js";
 import { t } from "../../shared/i18n.js";
+import { sortWorkspaces, WORKSPACE_SORTS } from "../../shared/workspaces.js";
 import { openConfirmDialog } from "./modals.js";
 
 const invoke = (channel, params) => window.pi.invoke(channel, params ?? {});
@@ -36,6 +37,7 @@ let busy = false;
 let initialized = false;
 let deleteArmed = null; // { key, run } of the armed (first-click) delete
 let deleteArmedTimer = null;
+let wsSort = "recent"; // "recent" (last used) | "name" (alphabetical)
 
 function isOpen() {
 	return !!sidebarEl && !sidebarEl.classList.contains("ws-collapsed");
@@ -93,6 +95,8 @@ export function initWorkspaceSidebar({ onOpenWorkspace: a, onOpenSession: b, onN
 		if (busy) return;
 		onNewWorkspace();
 	});
+	const sortBtn = document.getElementById("ws-sort");
+	if (sortBtn) sortBtn.addEventListener("click", () => setSort(wsSort === "recent" ? "name" : "recent"));
 	document.getElementById("ws-collapse").addEventListener("click", closeWorkspaceSidebar);
 	const expandBtn = document.getElementById("ws-expand");
 	if (expandBtn) expandBtn.addEventListener("click", openWorkspaceSidebar);
@@ -150,16 +154,46 @@ function renderError(msg) {
 
 export function render() {
 	if (!treeEl) return;
+	updateSortButton();
 	treeEl.innerHTML = "";
-	if (workspaces.length === 0) {
+	const ordered = sortWorkspaces(workspaces, wsSort);
+	if (ordered.length === 0) {
 		const d = document.createElement("div");
 		d.className = "ws-sess-sub";
 		d.textContent = t("ws.noWorkspaces");
 		treeEl.appendChild(d);
 		return;
 	}
-	for (const ws of workspaces) {
+	for (const ws of ordered) {
 		treeEl.appendChild(renderNode(ws));
+	}
+}
+
+function updateSortButton() {
+	const btn = document.getElementById("ws-sort");
+	if (!btn) return;
+	if (wsSort === "name") {
+		btn.textContent = "Aa";
+		btn.title = t("ws.sortName");
+	} else {
+		btn.textContent = "⇅";
+		btn.title = t("ws.sortRecent");
+	}
+}
+
+function setSort(mode) {
+	if (!WORKSPACE_SORTS.includes(mode)) return;
+	wsSort = mode;
+	render();
+}
+
+export function workspaceSidebarGetSort() {
+	return wsSort;
+}
+export function workspaceSidebarSetSort(mode) {
+	if (WORKSPACE_SORTS.includes(mode)) {
+		wsSort = mode;
+		if (initialized) render();
 	}
 }
 

@@ -357,6 +357,10 @@ const MESSAGES = {
 		"ws.noWorkspaces": "No workspaces",
 		"ws.wsRowHint": "Click to expand · double-click to open",
 		"ws.toggle": "Show / hide sessions",
+		"ws.chooseTitle": "Choose a workspace",
+		"ws.chooseFooter": "↑/↓ move · Enter open · N new · Esc cancel",
+		"ws.sortRecent": "Recent",
+		"ws.sortName": "Name",
 
 		// ---- screenshot ----
 		"snap.previewTitle": "Screenshot preview · {w}×{h}",
@@ -767,6 +771,10 @@ const MESSAGES = {
 		"ws.noWorkspaces": "没有工作区",
 		"ws.wsRowHint": "点击展开 · 双击打开",
 		"ws.toggle": "显示 / 隐藏会话",
+		"ws.chooseTitle": "选择工作区",
+		"ws.chooseFooter": "↑/↓ 移动 · Enter 打开 · N 新建 · Esc 取消",
+		"ws.sortRecent": "最近使用",
+		"ws.sortName": "按名称",
 
 		// ---- 截图 ----
 		"snap.previewTitle": "截图预览 · {w}×{h}",

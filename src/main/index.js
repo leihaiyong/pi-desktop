@@ -213,8 +213,11 @@ async function start() {
 		buildMenu();
 	});
 	try {
+		// With no --cwd/--session the host defaults to the most recently used
+		// workspace (never a throwaway process.cwd()) and the renderer asks the
+		// user which workspace to open (or to create a new one).
 		await host.start({
-			cwd: cli.cwd ?? process.cwd(),
+			cwd: cli.cwd,
 			sessionPath: cli.session,
 			explicitCwd: Boolean(cli.cwd || cli.session),
 		});

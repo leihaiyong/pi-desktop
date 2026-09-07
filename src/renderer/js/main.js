@@ -10,6 +10,8 @@ import {
 	openWorkspaceSidebar,
 	refresh as workspaceSidebarRefresh,
 	workspaceSidebarSetBusy,
+	workspaceSidebarGetSort,
+	workspaceSidebarSetSort,
 } from "./workspaces.js";
 import { t, getLanguage, setLanguage, SUPPORTED_LANGUAGES } from "../../shared/i18n.js";
 
@@ -34,6 +36,7 @@ const transcriptEl = $("#transcript");
 const transcript = new Transcript(transcriptEl, (atBottom) => {});
 
 let toastTimer = null;
+let startupPickerShown = false;
 
 function toast(message, type = "info", timeout = 3500) {
 	const root = $("#toast-root");
@@ -262,10 +265,29 @@ function initWorkspaceSidebarUI() {
 	});
 }
 
-// Opens (or re-focuses) the workspace sidebar. Kept as the entry point for the
-// /workspaces command, the menu, and first-run.
+// Opens (or re-focuses) the workspace sidebar. Entry point for the
+// /workspaces command and the menu.
 function openWorkspacePickerUI() {
 	openWorkspaceSidebar();
+}
+
+// Startup “ask the user” flow: a modal to open an existing workspace or
+// create a new one. Shown when no --cwd/--session was passed on the command
+// line, so the app never silently opens a throwaway workspace.
+async function openWorkspacePickerModal() {
+	const workspaces = (await invokeSafe("workspaces.list", { sort: workspaceSidebarGetSort() })) ?? [];
+	if (!workspaces.length) {
+		// No workspaces yet — go straight to creating one.
+		newWorkspace();
+		return;
+	}
+	modals.openWorkspacePicker({
+		workspaces,
+		initialSort: workspaceSidebarGetSort(),
+		onSortChange: (mode) => workspaceSidebarSetSort(mode),
+		onPick: (ws) => switchToWorkspace(ws.cwd),
+		onNew: () => newWorkspace(),
+	});
 }
 
 /** Patch the displayed model (and thinking level) after a model change that
@@ -546,6 +568,12 @@ window.pi.on("agent:event", handleAgentEvent);
 window.pi.on("host:ready", (snap) => {
 	applySnapshot(snap);
 	editor.focus();
+	// First-run “choose a workspace”: shown once, after the snapshot is live,
+	// when the workspace wasn’t forced via --cwd/--session.
+	if (!startupPickerShown && snap && !snap.explicitCwd && !snap.smoke) {
+		startupPickerShown = true;
+		void openWorkspacePickerModal();
+	}
 });
 
 window.pi.on("host:session-replaced", (snap) => {
@@ -1708,16 +1736,9 @@ async function init() {
 	// Pull the current snapshot. The one-shot host:ready push can be missed if
 	// the renderer loads after main finished starting (common when the app is
 	// packaged into asar and module loading is slower). host.snapshot is gated
-	// on host readiness, so this resolves once the session is live.
+	// on host readiness, so this resolves once the session is live. The
+	// first-run workspace picker is triggered from the host:ready handler.
 	await refreshSnapshot(null);
-
-	// First-run experience: when no workspace was chosen via CLI (--cwd /
-	// --session) and this is not a smoke run, ask the user which workspace
-	// to open (or to create a new one by picking a directory).
-	const snap = state.snapshot;
-	if (snap && !snap.explicitCwd && !snap.smoke) {
-		openWorkspacePickerUI();
-	}
 }
 
 void init();

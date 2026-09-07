@@ -1205,6 +1205,8 @@ async function runCommand(line) {
 			if (args) {
 				const res = await invokeSafe("session.scope.set", { patterns: args.split(/\s+/) });
 				if (res?.diagnostics?.length) toast(res.diagnostics.join("\n"), "warning");
+				// sync cached snapshot so reopening reflects the saved scope
+				if (state.snapshot && Array.isArray(res?.models)) state.snapshot.scopedModels = res.models;
 				toast(t("app.scopedModels", { n: res?.models?.length ?? 0 }), "info");
 				return true;
 			}
@@ -1216,6 +1218,8 @@ async function runCommand(line) {
 				onSave: async (patterns) => {
 					const res = await invokeSafe("session.scope.set", { patterns });
 					if (res?.diagnostics?.length) toast(res.diagnostics.join("\n"), "warning");
+					// sync cached snapshot so reopening reflects the saved scope
+					if (state.snapshot && Array.isArray(res?.models)) state.snapshot.scopedModels = res.models;
 					toast(t("app.scopedModels", { n: res?.models?.length ?? 0 }), "info");
 				},
 			});

@@ -358,24 +358,59 @@ export function openSessionSelector({ sessions, cwd, all = false, onPick, onRena
 	});
 }
 
+// CSS class for a tree row, keyed by entry type/role, so different kinds of
+// messages are visually distinguished (colored) in the tree view.
+function treeRowClass(row) {
+	if (row.type === "message") {
+		if (row.role === "user") return "tr-user";
+		if (row.role === "assistant") return "tr-assistant";
+		if (row.role === "toolResult") return "tr-tool";
+		if (row.role === "bashExecution") return "tr-bash";
+		return "tr-msg";
+	}
+	switch (row.type) {
+		case "compaction":
+			return "tr-compaction";
+		case "branch_summary":
+			return "tr-branch";
+		case "model_change":
+			return "tr-model";
+		case "thinking_level_change":
+			return "tr-thinking";
+		case "session_info":
+			return "tr-title";
+		case "label":
+			return "tr-labeled";
+		case "custom":
+		case "custom_message":
+			return "tr-custom";
+		default:
+			return "tr-meta";
+	}
+}
+
 export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, filter = "default", reloadTree }) {
 	// Mutable state so the tree can refresh in place after a fork/clone/navigate.
 	let entries = tree.entries ?? [];
 	let leafId = tree.leafId;
 	let visibleRows = [];
 	let selected = 0;
+	// Active type filter, switched live from the toolbar buttons.
+	let filterMode = filter;
+	// Bookkeeping entries hidden by the "default" / "no-tools" views.
+	const HIDDEN_DEFAULT = new Set(["model", "thinking", "session_info", "label", "custom"]);
 	const matchFilter = (row) => {
-		switch (filter) {
+		switch (filterMode) {
 			case "user-only":
 				return row.role === "user";
 			case "no-tools":
-				return !["toolResult", "model", "thinking", "label", "custom", "session", "message"].includes(row.type) || row.role === "user" || row.role === "assistant" || row.role === "compaction" || row.role === "branchSummary";
+				return !HIDDEN_DEFAULT.has(row.role) && row.role !== "toolResult";
 			case "labeled-only":
 				return row.label != null;
 			case "all":
 				return true;
 			default:
-				return !["model", "thinking", "session", "label", "custom"].includes(row.type);
+				return !HIDDEN_DEFAULT.has(row.role);
 		}
 	};
 	// A linear session (no branches) renders as a flat list; only a branched
@@ -390,9 +425,33 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 		renderBody: (body) => {
 			body.innerHTML = "";
 
-			// action toolbar: navigate / fork / branch / label
+			// toolbar: type filters (left) + actions (right)
 			const toolbar = document.createElement("div");
 			toolbar.className = "tree-toolbar";
+			const FILTERS = [
+				["default", "settings.default"],
+				["no-tools", "settings.noTools"],
+				["user-only", "settings.userOnly"],
+				["labeled-only", "settings.labeledOnly"],
+				["all", "settings.all"],
+			];
+			const filterGroup = document.createElement("div");
+			filterGroup.className = "tree-filters";
+			const filterBtns = [];
+			for (const [mode, key] of FILTERS) {
+				const b = document.createElement("button");
+				b.className = "tree-fbtn";
+				b.textContent = t(key);
+				b.addEventListener("click", () => setFilter(mode));
+				filterGroup.appendChild(b);
+				filterBtns.push([mode, b]);
+			}
+			toolbar.appendChild(filterGroup);
+			const spacer = document.createElement("span");
+			spacer.className = "tree-tspacer";
+			toolbar.appendChild(spacer);
+			const actionGroup = document.createElement("div");
+			actionGroup.className = "tree-acts";
 			const btn = (icon, title, kind) => {
 				const b = document.createElement("button");
 				b.className = "tree-act";
@@ -401,13 +460,26 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 				b.addEventListener("click", () => void act(kind));
 				return b;
 			};
-			toolbar.append(
+			actionGroup.append(
 				btn("→", t("modal.treeNav"), "navigate"),
 				btn("⑂", t("modal.treeFork"), "fork"),
 				btn("⑃", t("modal.treeBranch"), "clone"),
 				btn("✎", t("modal.setLabel"), "label"),
 			);
+			toolbar.appendChild(actionGroup);
 			body.appendChild(toolbar);
+
+			const refreshFilterActive = () => {
+				for (const [mode, b] of filterBtns) b.classList.toggle("active", mode === filterMode);
+			};
+			function setFilter(mode) {
+				if (filterMode === mode) return;
+				filterMode = mode;
+				visibleRows = computeVisible();
+				refreshFilterActive();
+				selectLeaf();
+				render();
+			}
 
 			const listEl = document.createElement("div");
 			listEl.className = "tree-list";
@@ -418,7 +490,7 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 				listEl.innerHTML = "";
 				visibleRows.forEach((row, i) => {
 					const div = document.createElement("div");
-					div.className = "tree-row" + (i === selected ? " selected" : "") + (row.isLeaf ? " leaf" : "");
+					div.className = `tree-row ${treeRowClass(row)}` + (i === selected ? " selected" : "") + (row.isLeaf ? " leaf" : "");
 					const indent = "\u00A0".repeat((asTree ? row.depth : 0) * 2 + 1);
 					div.innerHTML = `<span class="t-depth">${indent}${row.isLeaf ? "▶ " : ""}</span><span class="t-role">${escapeHtml(row.role ?? row.type)}</span><span class="t-label">${
 						row.label ? `[${escapeHtml(row.label)}] ` : ""
@@ -463,6 +535,7 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 
 			visibleRows = computeVisible();
 			selectLeaf();
+			refreshFilterActive();
 			render();
 
 			body._handleKey = (e) => {

@@ -1333,6 +1333,44 @@ body {
 	border-color: var(--accent);
 }
 
+.tree-filters {
+	display: inline-flex;
+	gap: 4px;
+	align-items: center;
+}
+
+.tree-fbtn {
+	background: var(--bg-alt);
+	border: 1px solid var(--border);
+	color: var(--muted);
+	border-radius: 5px;
+	height: 24px;
+	padding: 0 8px;
+	font-size: calc(11px * var(--fs, 1.1429));
+	cursor: pointer;
+	transition: background .1s, color .1s, border-color .1s;
+}
+
+.tree-fbtn:hover {
+	background: var(--bg-panel);
+	color: var(--fg);
+}
+
+.tree-fbtn.active {
+	background: var(--accent);
+	border-color: var(--accent);
+	color: #fff;
+}
+
+.tree-tspacer {
+	flex: 1;
+}
+
+.tree-acts {
+	display: inline-flex;
+	gap: 6px;
+}
+
 .tree-row {
 	display: flex;
 	gap: 6px;
@@ -1370,6 +1408,63 @@ body {
 }
 
 .tree-row.leaf .t-text {
+	color: var(--accent);
+}
+
+/* color message types so they are visually distinguished */
+.tree-row.tr-user .t-role {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.tree-row.tr-assistant .t-role {
+	color: var(--success);
+	font-weight: 600;
+}
+
+.tree-row.tr-tool .t-role,
+.tree-row.tr-bash .t-role {
+	color: var(--tool);
+}
+
+.tree-row.tr-tool .t-text,
+.tree-row.tr-bash .t-text {
+	color: var(--muted);
+}
+
+.tree-row.tr-thinking .t-role {
+	color: var(--muted);
+	font-style: italic;
+}
+
+.tree-row.tr-thinking .t-text {
+	color: var(--muted);
+}
+
+.tree-row.tr-model .t-role,
+.tree-row.tr-model .t-text,
+.tree-row.tr-title .t-role,
+.tree-row.tr-title .t-text,
+.tree-row.tr-msg .t-role,
+.tree-row.tr-meta .t-role {
+	color: var(--muted);
+}
+
+.tree-row.tr-compaction .t-role,
+.tree-row.tr-branch .t-role {
+	color: var(--warning);
+}
+
+.tree-row.tr-compaction .t-text,
+.tree-row.tr-branch .t-text {
+	color: var(--warning);
+}
+
+.tree-row.tr-labeled .t-role {
+	color: var(--tool);
+}
+
+.tree-row.tr-custom .t-role {
 	color: var(--accent);
 }
 

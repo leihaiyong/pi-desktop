@@ -565,15 +565,26 @@ function handleAgentEvent(event) {
 
 window.pi.on("agent:event", handleAgentEvent);
 
-window.pi.on("host:ready", (snap) => {
-	applySnapshot(snap);
-	editor.focus();
-	// First-run “choose a workspace”: shown once, after the snapshot is live,
-	// when the workspace wasn’t forced via --cwd/--session.
+// First-run “choose a workspace”: shown once, after the first live snapshot,
+// when the workspace wasn’t forced via --cwd/--session. It is triggered from
+// BOTH the host:ready push and init’s initial host.snapshot pull, because the
+// one-shot host:ready event can be missed when the renderer loads after main
+// finished starting (notably in packaged/portable builds, where the asar
+// module loading is slower and main can send host:ready before the renderer
+// has registered its listener). The startupPickerShown flag guarantees it
+// opens at most once no matter which path (or both) runs first.
+function maybeShowStartupPicker() {
+	const snap = state.snapshot;
 	if (!startupPickerShown && snap && !snap.explicitCwd && !snap.smoke) {
 		startupPickerShown = true;
 		void openWorkspacePickerModal();
 	}
+}
+
+window.pi.on("host:ready", (snap) => {
+	applySnapshot(snap);
+	editor.focus();
+	maybeShowStartupPicker();
 });
 
 window.pi.on("host:session-replaced", (snap) => {
@@ -1741,8 +1752,10 @@ async function init() {
 	// the renderer loads after main finished starting (common when the app is
 	// packaged into asar and module loading is slower). host.snapshot is gated
 	// on host readiness, so this resolves once the session is live. The
-	// first-run workspace picker is triggered from the host:ready handler.
+	// first-run workspace picker is re-checked here as a fallback for when the
+	// one-shot host:ready push was missed (see maybeShowStartupPicker).
 	await refreshSnapshot(null);
+	maybeShowStartupPicker();
 }
 
 void init();

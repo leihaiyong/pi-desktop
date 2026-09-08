@@ -24,6 +24,9 @@ All notable changes to Pi Desktop are documented here.
 
 ### Fixed
 
+- Deleting a workspace from the sidebar now opens a confirmation dialog
+  (matching session delete) instead of a two-step “click again to confirm”;
+  the old arm state and its styles were removed
 - Session tree: a branchless session now renders as a flat list (no staircase);
   keyboard fork (`Ctrl+Enter`) is no longer shadowed by `Enter`; the tree
   refreshes in place after navigate / fork / clone

@@ -35,8 +35,6 @@ const sessionsByCwd = {}; // cwd -> session[]
 const loadingCwds = new Set(); // cwds with a fetch in flight
 let busy = false;
 let initialized = false;
-let deleteArmed = null; // { key, run } of the armed (first-click) delete
-let deleteArmedTimer = null;
 let wsSort = "recent"; // "recent" (last used) | "name" (alphabetical)
 
 function isOpen() {
@@ -228,19 +226,18 @@ function renderNode(ws) {
 	row.append(caret, name, count);
 
 	if (!ws.isCurrent) {
-		const wKey = `ws:${ws.cwd}`;
 		const del = document.createElement("button");
 		del.className = "ws-del";
 		del.textContent = "🗑";
 		del.title = t("ws.deleteTitle");
-		if (isArmed(wKey)) {
-			del.classList.add("armed");
-			del.textContent = "✓";
-			del.title = t("ws.confirmDelete");
-		}
-		del.addEventListener("click", (e) => {
+		del.addEventListener("click", async (e) => {
 			e.stopPropagation();
-			armDelete(wKey, () => deleteWorkspace(ws));
+			if (busy) return;
+			const ok = await openConfirmDialog({
+				title: t("ws.deleteWorkspace"),
+				message: t("ws.deleteWorkspaceQ", { name: ws.name }),
+			});
+			if (ok) await deleteWorkspace(ws);
 		});
 		row.append(del);
 	}
@@ -364,33 +361,6 @@ function openSession(cwd, s) {
 	if (busy || !s) return;
 	busy = true;
 	onOpenSession(cwd, s);
-}
-
-function disarmDelete() {
-	deleteArmed = null;
-	clearTimeout(deleteArmedTimer);
-}
-
-function isArmed(key) {
-	return !!deleteArmed && deleteArmed.key === key;
-}
-
-// key identifies the armed element (stable across re-renders); run executes on confirm
-function armDelete(key, run) {
-	if (busy) return;
-	if (isArmed(key)) {
-		disarmDelete();
-		void run();
-		return;
-	}
-	disarmDelete();
-	deleteArmed = { key, run };
-	clearTimeout(deleteArmedTimer);
-	deleteArmedTimer = setTimeout(() => {
-		disarmDelete();
-		render();
-	}, 5000);
-	render();
 }
 
 async function deleteWorkspace(ws) {

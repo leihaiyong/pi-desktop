@@ -2,6 +2,43 @@
 
 All notable changes to Pi Desktop are documented here.
 
+## [0.4.0] — 2026-09-08
+
+### Added
+
+- **Startup workspace picker** — on launch (no `--cwd`/`--session`) a
+  “Choose a workspace” dialog now appears instead of silently opening a
+  throwaway `process.cwd()`: pick an existing workspace (keyboard or click) or
+  create a new one. The default working directory is the most-recently-used
+  workspace, never a temp dir
+- **Workspace sorting** — the workspace list can be ordered by most-recently-used
+  or by name, in both the startup picker (Recent / Name toggle) and the sidebar
+  (⇅ / Aa toggle); the current workspace stays pinned at the top
+- **Session tree — message-type colors + live filters** — every tree row is
+  tinted by entry type (user = accent, assistant = success, tool = muted,
+  thinking = italic, compaction/branch = warning, model/title/meta = muted), and
+  a filter toolbar (default / no tools / user only / labeled only / all)
+  re-renders the tree live
+- **Session tree — action toolbar** — icon buttons for navigate / fork / branch
+  / label make fork & branch discoverable and clickable, not just keyboard-only
+
+### Fixed
+
+- Session tree: a branchless session now renders as a flat list (no staircase);
+  keyboard fork (`Ctrl+Enter`) is no longer shadowed by `Enter`; the tree
+  refreshes in place after navigate / fork / clone
+- `/scoped-models`: the selector now lists only models with active auth (was
+  every known model) and marks the ones in the current scope with a `✓`; a scoped
+  model that lost auth stays in the saved scope but is hidden from the list
+- `/scoped-models`: the checked (selected) state no longer disappears after
+  saving — the renderer's cached scope is now synced with the saved result, so
+  reopening the selector shows the correct selection
+
+### Quality
+
+- 6 new unit tests for `sortWorkspaces` / `WORKSPACE_SORTS` (236 → 242 test
+  cases)
+
 ## [0.3.0] — 2026-09-07
 
 ### Added

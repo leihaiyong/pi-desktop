@@ -398,7 +398,10 @@ export function openWorkspacePicker({ workspaces, onPick, onNew, onSortChange, i
 				newBtn.className = "tree-act";
 				newBtn.textContent = "＋";
 				newBtn.title = t("ws.new");
-				newBtn.addEventListener("click", () => onNew?.());
+				newBtn.addEventListener("click", async () => {
+					if (!onNew) return;
+					if (await onNew()) close();
+				});
 				bar.appendChild(newBtn);
 				body.appendChild(bar);
 
@@ -467,8 +470,11 @@ export function openWorkspacePicker({ workspaces, onPick, onNew, onSortChange, i
 					return true;
 				}
 				if (e.key === "n" || e.key === "N") {
+					if (!onNew) return false;
 					e.preventDefault();
-					onNew?.();
+					void (async () => {
+						if (await onNew()) close();
+					})();
 					return true;
 				}
 				return false;

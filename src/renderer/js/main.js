@@ -238,22 +238,27 @@ function openSessionInWorkspace(wsCwd, session) {
 	});
 }
 
-function newWorkspace() {
-	void window.pi.invoke("system.pickDirectory").then((dir) => {
-		if (!dir) return;
-		const cwd = state.snapshot?.cwd ?? "";
-		if (dir === cwd) {
-			toast(t("app.alreadyInWorkspace"), "info");
-			return;
-		}
-		void invokeSafe("system.reconfigure", { cwd: dir }).then((res) => {
-			if (res?.error) {
-				toast(res.error, "error");
-				return;
-			}
-			toast(`Workspace: ${dir}`, "success");
-		});
-	});
+// Opens the native directory picker and, if the user confirms a folder,
+// reconfigures the agent into it. Resolves true when the workspace actually
+// switched, false when the pick was cancelled, the folder is already current,
+// or the reconfigure failed — callers (e.g. the startup picker) use this to
+// decide whether to close themselves.
+async function newWorkspace() {
+	const dir = await invokeSafe("system.pickDirectory");
+	if (!dir) return false;
+	const cwd = state.snapshot?.cwd ?? "";
+	if (dir === cwd) {
+		toast(t("app.alreadyInWorkspace"), "info");
+		return false;
+	}
+	const res = await invokeSafe("system.reconfigure", { cwd: dir });
+	if (res?.error) {
+		toast(res.error, "error");
+		return false;
+	}
+	if (!res?.ok) return false;
+	toast(`Workspace: ${dir}`, "success");
+	return true;
 }
 
 function initWorkspaceSidebarUI() {

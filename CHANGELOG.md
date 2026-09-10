@@ -28,6 +28,9 @@ All notable changes to Pi Desktop are documented here.
   builds (notably the portable) when the renderer loaded after main finished
   starting and missed the one-shot `host:ready` push; the picker is now also
   triggered from the initial snapshot pull, so it opens reliably
+- Creating a new workspace from the startup “choose a workspace” dialog now
+  closes the dialog automatically (and switches into the new workspace) instead
+  of leaving it open; cancelling the folder picker keeps the dialog open
 - Deleting a workspace from the sidebar now opens a confirmation dialog
   (matching session delete) instead of a two-step “click again to confirm”;
   the old arm state and its styles were removed

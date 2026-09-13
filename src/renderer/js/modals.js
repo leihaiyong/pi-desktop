@@ -619,9 +619,9 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 					const div = document.createElement("div");
 					div.className = `tree-row ${treeRowClass(row)}` + (i === selected ? " selected" : "") + (row.isLeaf ? " leaf" : "");
 					const indent = "\u00A0".repeat((asTree ? row.depth : 0) * 2 + 1);
-					div.innerHTML = `<span class="t-depth">${indent}${row.isLeaf ? "▶ " : ""}</span><span class="t-role">${escapeHtml(row.role ?? row.type)}</span><span class="t-label">${
+					div.innerHTML = `<span class="t-depth">${indent}${row.isLeaf ? "▶ " : ""}</span><span class="t-label">${
 						row.label ? `[${escapeHtml(row.label)}] ` : ""
-					}</span><span class="t-text"></span><span class="t-time">${row.timestamp ? formatTimestamp(row.timestamp).slice(5) : ""}</span>`;
+					}</span><span class="t-role">${escapeHtml(row.role ?? row.type)}</span><span class="t-text"></span><span class="t-time">${row.timestamp ? formatTimestamp(row.timestamp).slice(5) : ""}</span>`;
 					div.querySelector(".t-text").textContent = row.text || t("modal.noText");
 					div.addEventListener("click", () => {
 						selected = i;

@@ -432,6 +432,8 @@ function updateStatus() {
 	const parts = [];
 	if (snap.isCompacting) {
 		parts.push(`<span class="spinner"></span><span class="status-text">${escapeText(t("status.compacting"))}</span>`);
+	} else if (state.summarizing) {
+		parts.push(`<span class="spinner"></span><span class="status-text">${escapeText(t("status.summarizing"))}</span>`);
 	} else if (snap.isStreaming || state.agentRunning) {
 		// the spinner itself lives in the transcript, following the streaming
 		// output; only an extension-provided working message is shown here
@@ -535,6 +537,11 @@ function handleAgentEvent(event) {
 		case "session_info_changed":
 			if (state.snapshot) state.snapshot.sessionName = event.name;
 			$("#tb-session").textContent = event.name ?? t("info.unnamed");
+			break;
+		case "session_tree":
+			// Tree navigation moved the leaf (and may have appended a branch
+			// summary); rebuild the transcript from a fresh snapshot.
+			void refreshSnapshot(null);
 			break;
 		case "thinking_level_changed":
 			if (state.snapshot) {
@@ -1288,10 +1295,51 @@ async function openTree() {
 		tree,
 		filter: state.snapshot?.settings?.treeFilterMode ?? "default",
 		onNavigate: async (row) => {
-			const res = await invokeSafe("session.navigateTree", {
-				targetId: row.id,
-			});
-			if (res?.cancelled) toast(t("app.navCancelled"), "warning");
+			if (row.id === tree.leafId) {
+				toast(t("app.alreadyHere"), "warning");
+				return;
+			}
+			// Ask whether to summarize the branch being abandoned (mirrors the
+			// TUI). Skipped when the user has set branchSummary.skipPrompt.
+			let wantsSummary = false;
+			let customInstructions;
+			if (!state.snapshot?.settings?.branchSummary?.skipPrompt) {
+				for (;;) {
+					const choice = await modals.openSummarizeChoice();
+					if (choice === null) return; // cancelled -> abort navigation
+					if (choice === "none") {
+						wantsSummary = false;
+						break;
+					}
+					if (choice === "summarize") {
+						wantsSummary = true;
+						break;
+					}
+					// "custom": ask for instructions; cancelling re-asks the choice.
+					customInstructions = await modals.openInputDialog({
+						title: t("modal.customSummarize"),
+						placeholder: t("modal.customSummarizePh"),
+					});
+					if (customInstructions === undefined) continue;
+					wantsSummary = true;
+					break;
+				}
+			}
+			if (wantsSummary) {
+				state.summarizing = true;
+				updateStatus();
+			}
+			try {
+				const res = await invokeSafe("session.navigateTree", {
+					targetId: row.id,
+					summarize: wantsSummary,
+					customInstructions,
+				});
+				if (res?.cancelled) toast(t("app.navCancelled"), "warning");
+			} finally {
+				state.summarizing = false;
+				updateStatus();
+			}
 		},
 		onFork: async (row) => {
 			await invokeSafe("session.fork", { entryId: row.id, position: "before" });

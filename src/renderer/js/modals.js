@@ -269,6 +269,25 @@ export function openConfirmDialog({ title, message, confirmLabel = t("modal.conf
 	});
 }
 
+// Ask how to handle the branch being abandoned when navigating the tree:
+// no summary, summarize, or summarize with a custom prompt. Resolves to
+// "none" | "summarize" | "custom", or null when the user cancels.
+export function openSummarizeChoice() {
+	return new Promise((resolve) => {
+		openModal({
+			title: t("modal.summarizeBranch"),
+			width: "narrow",
+			items: [
+				{ label: t("modal.noSummary"), value: "none" },
+				{ label: t("modal.summarize"), value: "summarize" },
+				{ label: t("modal.summarizeWithPrompt"), value: "custom" },
+			],
+			onSelect: (it) => resolve(it.value),
+			onClose: () => resolve(null),
+		});
+	});
+}
+
 // ---------------------------------------------------------------- selectors
 
 export function openModelSelector({ models, current, thinkingLevels, onPick, platform = "darwin" }) {

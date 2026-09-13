@@ -15,20 +15,32 @@ export function flattenTree(entries, leafId) {
 		children.get(key).push(e);
 	}
 
-	const depthOf = (id, seen = new Set()) => {
-		let d = 0;
-		let cur = byId.get(id);
-		while (cur && cur.parentId && byId.has(cur.parentId) && !seen.has(cur.id)) {
-			seen.add(cur.id);
-			d++;
-			cur = byId.get(cur.parentId);
+	// Branch-based indent, mirroring pi's TUI tree-selector: a single-child
+	// chain stays flat (indent 0) and the indent only grows at a branch point
+	// (a node with >1 child) and for the first generation after a branch.
+	// Counting every ancestor (the old behavior) drew a long linear
+	// conversation as a deep staircase that ran off the right edge of the
+	// modal. A breadth-first walk from the roots assigns each node its indent.
+	const indentOf = new Map();
+	const roots = entries.filter((e) => e.parentId == null || !byId.has(e.parentId));
+	const queue = roots.map((r) => ({ id: r.id, indent: 0, justBranched: false }));
+	for (const r of roots) indentOf.set(r.id, 0);
+	for (let head = 0; head < queue.length; head++) {
+		const { id, indent, justBranched } = queue[head];
+		const kids = children.get(id) ?? [];
+		const multipleChildren = kids.length > 1;
+		const childIndent =
+			multipleChildren || (justBranched && indent > 0) ? indent + 1 : indent;
+		for (const k of kids) {
+			if (indentOf.has(k.id)) continue; // defensive: cycles / duplicate ids
+			indentOf.set(k.id, childIndent);
+			queue.push({ id: k.id, indent: childIndent, justBranched: multipleChildren });
 		}
-		return d;
-	};
+	}
 
 	const rows = [];
 	for (const e of entries) {
-		rows.push({ ...e, depth: depthOf(e.id), isLeaf: e.id === leafId });
+		rows.push({ ...e, depth: indentOf.get(e.id) ?? 0, isLeaf: e.id === leafId });
 	}
 	return rows;
 }

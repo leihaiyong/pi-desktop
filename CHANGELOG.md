@@ -37,6 +37,10 @@ All notable changes to Pi Desktop are documented here.
 - Session tree: a branchless session now renders as a flat list (no staircase);
   keyboard fork (`Ctrl+Enter`) is no longer shadowed by `Enter`; the tree
   refreshes in place after navigate / fork / clone
+- Session tree: a long, mostly-linear session with a single fork no longer
+  renders as a deep off-screen staircase — indentation is now branch-based
+  (matching pi's TUI tree-selector), so only actual forks are indented and a
+  straight conversation chain stays flat (was one indent level per ancestor)
 - `/scoped-models`: the selector now lists only models with active auth (was
   every known model) and marks the ones in the current scope with a `✓`; a scoped
   model that lost auth stays in the saved scope but is hidden from the list

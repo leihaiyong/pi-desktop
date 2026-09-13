@@ -626,6 +626,14 @@ describe("import → tree → export → resume → fork → new", () => {
 		const tree = await ok("sessions.tree");
 		expect(Object.values(tree.labels)).toContain("bookmark");
 		expect(host.session.sessionManager.getLabel("e2")).toBe("bookmark");
+		// The label resolves onto its *target* entry (so [bookmark] renders on the
+		// right row), while the label record row stays a hidden bookkeeping entry
+		// with no label of its own.
+		const target = tree.entries.find((e) => e.id === "e2");
+		expect(target.label).toBe("bookmark");
+		const records = tree.entries.filter((e) => e.role === "label");
+		expect(records.length).toBeGreaterThan(0);
+		for (const r of records) expect(r.label).toBeUndefined();
 	}, T);
 
 	it("sessions.setLabel rejects unknown entries", async () => {

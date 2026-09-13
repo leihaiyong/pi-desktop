@@ -939,13 +939,32 @@ export class AgentHost {
 			}
 			case "sessions.tree": {
 				const sm = s.sessionManager;
-				const entries = sm.getEntries().map((e) => this.#entryForTree(e));
+				// Resolve labels the way SessionManager does: a label entry records
+				// targetId + label, and the label is displayed on the *target* entry
+				// (the label entry itself stays a hidden bookkeeping row). Attaching it
+				// to the target is what makes [label] show in the tree and what the
+				// "labeled only" filter matches.
+				const raw = sm.getEntries();
+				const labelsById = new Map(); // targetId -> { label, timestamp }
+				for (const e of raw) {
+					if (e.type === "label") {
+						if (e.label) labelsById.set(e.targetId, { label: e.label, timestamp: e.timestamp });
+						else labelsById.delete(e.targetId);
+					}
+				}
+				const entries = raw.map((e) => {
+					const row = this.#entryForTree(e);
+					const resolved = labelsById.get(e.id);
+					row.label = resolved?.label;
+					row.labelTimestamp = resolved?.timestamp;
+					return row;
+				});
 				return {
 					entries,
 					leafId: sm.getLeafEntry()?.id,
 					// SessionManager has no getPath(); getBranch() walks leaf -> root
 					path: sm.getBranch().map((e) => e.id),
-					labels: Object.fromEntries(entries.filter((e) => e.label).map((e) => [e.id, e.label])),
+					labels: Object.fromEntries([...labelsById].map(([id, v]) => [id, v.label])),
 				};
 			}
 			case "sessions.setLabel": {

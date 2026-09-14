@@ -2,6 +2,39 @@
 
 All notable changes to Pi Desktop are documented here.
 
+## [0.5.0] — 2026-09-14
+
+### Added
+
+- **Startup picker lists sessions** — the “Choose a workspace” dialog now shows
+  each workspace’s recent sessions as an indented, compact tree under the
+  workspace header: pick a session to open it, or pick the workspace row to
+  start a fresh session there
+- **Forked-session tree** — the sidebar and the startup picker now show a
+  session’s forked children nested under their parent (via `parentSessionPath`),
+  ordered so the most-recently-used branch stays on top
+- **Name-first session labels** — a session shows its user name (★ prefix) before
+  its first message in both lists, matching the sidebar’s existing behavior
+- **Summarize the abandoned branch on navigate** — moving the tree to an earlier
+  point prompts to summarize the branch being left behind (custom prompt or
+  skip), honoring the `branchSummary` setting
+
+### Fixed
+
+- Session tree: labels now render on the entry they target (not the label record)
+  and appear before the role
+- Session tree: cancelling the branch-summarize prompt returns to the tree (as in
+  pi’s TUI) instead of silently doing nothing
+- Branch summarization: Esc now aborts a running summary, and the status line
+  shows “(Esc to cancel)” while one is in progress
+- Status line: actually hides when the summarizing state ends (a stray `display`
+  rule was overriding the `hidden` attribute)
+
+### Quality
+
+- New unit tests for the session-tree forest / flatten / label helpers (255 test
+  cases total)
+
 ## [0.4.0] — 2026-09-08
 
 ### Added

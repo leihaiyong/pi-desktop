@@ -535,7 +535,7 @@ function treeRowClass(row) {
 	}
 }
 
-export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, filter = "default", reloadTree }) {
+export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, filter = "default", reloadTree, initialSelectedId }) {
 	// Mutable state so the tree can refresh in place after a fork/clone/navigate.
 	let entries = tree.entries ?? [];
 	let leafId = tree.leafId;
@@ -680,9 +680,16 @@ export function openTreeSelector({ tree, onNavigate, onFork, onClone, onLabel, f
 			}
 
 			visibleRows = computeVisible();
-			selectLeaf();
+			if (initialSelectedId) {
+				const idx = visibleRows.findIndex((r) => r.id === initialSelectedId);
+				if (idx >= 0) selected = idx;
+				else selectLeaf();
+			} else {
+				selectLeaf();
+			}
 			refreshFilterActive();
 			render();
+			listEl.querySelector(".tree-row.selected")?.scrollIntoView({ block: "center" });
 
 			body._handleKey = (e) => {
 				if (e.key === "ArrowDown") {

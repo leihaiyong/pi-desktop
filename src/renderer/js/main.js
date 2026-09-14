@@ -1288,12 +1288,13 @@ async function doFork(clone = false) {
 	});
 }
 
-async function openTree() {
+async function openTree(initialSelectedId) {
 	const tree = await invokeSafe("sessions.tree");
 	if (!tree) return;
 	modals.openTreeSelector({
 		tree,
 		filter: state.snapshot?.settings?.treeFilterMode ?? "default",
+		initialSelectedId,
 		onNavigate: async (row) => {
 			if (row.id === tree.leafId) {
 				toast(t("app.alreadyHere"), "warning");
@@ -1306,7 +1307,12 @@ async function openTree() {
 			if (!state.snapshot?.settings?.branchSummary?.skipPrompt) {
 				for (;;) {
 					const choice = await modals.openSummarizeChoice();
-					if (choice === null) return; // cancelled -> abort navigation
+					if (choice === null) {
+						// cancelled -> return to the tree with this entry still selected
+						// (matches pi-tui: "cancels to tree")
+						void openTree(row.id);
+						return;
+					}
 					if (choice === "none") {
 						wantsSummary = false;
 						break;

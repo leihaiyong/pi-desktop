@@ -381,20 +381,34 @@ export function openSessionSelector({ sessions, cwd, all = false, onPick, onRena
 // Startup workspace chooser: a modal that asks the user to open an existing
 // workspace or create a new one. The list is sorted (most-recently-used or
 // by name) and the live workspace is pinned/highlighted.
-export function openWorkspacePicker({ workspaces, onPick, onNew, onSortChange, initialSort = "recent" }) {
+export function openWorkspacePicker({ workspaces, onPick, onPickSession, onNew, onSortChange, initialSort = "recent" }) {
 	let sort = WORKSPACE_SORTS.includes(initialSort) ? initialSort : "recent";
-	let selected = 0;
 	const ordered = () => sortWorkspaces(workspaces ?? [], sort);
+	// Flat, navigable list: each workspace is a header row (picking it starts a
+	// new session there); its sessions are indented sub-rows (picking one opens
+	// that session). Replaces the old "always start a new session" behavior.
+	const buildItems = () => {
+		const items = [];
+		for (const ws of ordered()) {
+			items.push({ kind: "workspace", ws });
+			for (const s of ws.sessions ?? []) items.push({ kind: "session", ws, session: s });
+		}
+		return items;
+	};
+	let items = buildItems();
+	let selected = (() => {
+		const i = items.findIndex((it) => it.kind === "workspace" && it.ws.isCurrent);
+		return i >= 0 ? i : 0;
+	})();
 	openModal({
 		title: t("ws.chooseTitle"),
 		width: "wide",
 		searchable: false,
 		renderBody: (body, { close }) => {
-			const rows0 = ordered();
-			selected = Math.max(0, rows0.findIndex((w) => w.isCurrent));
 			function render() {
 				body.innerHTML = "";
-				const rows = ordered();
+				items = buildItems();
+				if (selected > items.length - 1) selected = Math.max(0, items.length - 1);
 				// toolbar: sort toggle (left) + new workspace (right)
 				const bar = document.createElement("div");
 				bar.className = "ws-pick-bar";
@@ -426,28 +440,45 @@ export function openWorkspacePicker({ workspaces, onPick, onNew, onSortChange, i
 
 				const listEl = document.createElement("div");
 				listEl.className = "ws-pick-list";
-				rows.forEach((ws, i) => {
-					const row = document.createElement("div");
-					row.className = "ws-pick-row" + (i === selected ? " selected" : "") + (ws.isCurrent ? " is-current" : "");
-					const name = document.createElement("span");
-					name.className = "wsp-name";
-					name.textContent = (ws.isCurrent ? "● " : "") + ws.name;
-					const meta = document.createElement("span");
-					meta.className = "wsp-meta";
-					meta.textContent = [
-						ws.sessionCount ? `${ws.sessionCount} ${t("ws.sessions")}` : "",
-						ws.lastModified ? formatTimestamp(ws.lastModified) : "",
-					]
-						.filter(Boolean)
-						.join(" · ");
-					const p = document.createElement("span");
-					p.className = "wsp-path";
-					p.textContent = ws.cwd;
-					row.append(name, meta, p);
+				items.forEach((it, i) => {
+					let row;
+					if (it.kind === "workspace") {
+						row = document.createElement("div");
+						row.className = "ws-pick-row" + (i === selected ? " selected" : "") + (it.ws.isCurrent ? " is-current" : "");
+						const name = document.createElement("span");
+						name.className = "wsp-name";
+						name.textContent = (it.ws.isCurrent ? "● " : "") + it.ws.name;
+						const meta = document.createElement("span");
+						meta.className = "wsp-meta";
+						meta.textContent = [
+							it.ws.sessionCount ? `${it.ws.sessionCount} ${t("ws.sessions")}` : "",
+							it.ws.lastModified ? formatTimestamp(it.ws.lastModified) : "",
+						]
+							.filter(Boolean)
+							.join(" · ");
+						const p = document.createElement("span");
+						p.className = "wsp-path";
+						p.textContent = it.ws.cwd;
+						row.append(name, meta, p);
+					} else {
+						row = document.createElement("div");
+						row.className = "wsp-sess-row" + (i === selected ? " selected" : "") + (it.session.isCurrent ? " is-current" : "");
+						const bullet = document.createElement("span");
+						bullet.className = "wsp-bullet";
+						bullet.textContent = it.session.isCurrent ? "●" : "·";
+						const title = document.createElement("span");
+						title.className = "wsp-sess-title";
+						title.textContent = it.session.title || it.session.name || t("ws.noTitle");
+						const time = document.createElement("span");
+						time.className = "wsp-sess-time";
+						time.textContent = it.session.updated ? formatTimestamp(it.session.updated) : "";
+						row.append(bullet, title, time);
+					}
 					row.addEventListener("click", () => {
 						selected = i;
 						close();
-						onPick?.(ws);
+						if (it.kind === "workspace") onPick?.(it.ws);
+						else onPickSession?.(it.ws, it.session);
 					});
 					row.addEventListener("mousemove", () => {
 						if (selected !== i) {
@@ -457,22 +488,21 @@ export function openWorkspacePicker({ workspaces, onPick, onNew, onSortChange, i
 					});
 					listEl.appendChild(row);
 				});
-				if (rows.length === 0) {
+				if (items.length === 0) {
 					const d = document.createElement("div");
 					d.className = "ws-pick-empty";
 					d.textContent = t("ws.noWorkspaces");
 					listEl.appendChild(d);
 				}
 				body.appendChild(listEl);
-				listEl.querySelector(".ws-pick-row.selected")?.scrollIntoView({ block: "nearest" });
+				listEl.querySelector(".ws-pick-row.selected, .wsp-sess-row.selected")?.scrollIntoView({ block: "nearest" });
 			}
 			render();
 			body._handleKey = (e) => {
-				const rows = ordered();
-				if (!rows.length) return false;
+				if (!items.length) return false;
 				if (e.key === "ArrowDown") {
 					e.preventDefault();
-					selected = Math.min(rows.length - 1, selected + 1);
+					selected = Math.min(items.length - 1, selected + 1);
 					render();
 					return true;
 				}
@@ -484,8 +514,10 @@ export function openWorkspacePicker({ workspaces, onPick, onNew, onSortChange, i
 				}
 				if (e.key === "Enter") {
 					e.preventDefault();
+					const it = items[selected];
 					close();
-					onPick?.(rows[selected]);
+					if (it?.kind === "workspace") onPick?.(it.ws);
+					else onPickSession?.(it.ws, it.session);
 					return true;
 				}
 				if (e.key === "n" || e.key === "N") {

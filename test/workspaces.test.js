@@ -62,6 +62,18 @@ describe("groupWorkspaces", () => {
 		expect(ws).toHaveLength(2);
 	});
 
+	it("carries per-workspace sessions, recent first and capped, without changing the count", () => {
+		const s = [
+			{ cwd: "D:\\alpha", path: "p-old", modified: t(10) },
+			{ cwd: "D:\\alpha", path: "p-mid", modified: t(20) },
+			{ cwd: "D:\\alpha", path: "p-new", modified: t(30) },
+		];
+		const ws = groupWorkspaces(s, { currentCwd: "", sessionLimit: 2 });
+		const alpha = ws.find((w) => w.cwd === "D:\\alpha");
+		expect(alpha.sessions.map((x) => x.path)).toEqual(["p-new", "p-mid"]);
+		expect(alpha.sessionCount).toBe(3);
+	});
+
 	it("handles empty input", () => {
 		expect(groupWorkspaces([], { currentCwd: "" })).toEqual([]);
 		expect(groupWorkspaces(null, { currentCwd: "X:\\y" })).toHaveLength(1);

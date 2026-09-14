@@ -42,9 +42,10 @@ export function sortWorkspaces(list, mode = "recent") {
  * @param opts.currentCwd the live workspace; pinned first even without sessions
  * @param opts.sort "recent" (last used first, default) or "name" (alphabetical)
  * @param opts.limit max workspaces to return (in the chosen order)
- * @returns [{ cwd, name, isCurrent, sessionCount, lastModified }]
+ * @param opts.sessionLimit max sessions to attach per workspace (recent first)
+ * @returns [{ cwd, name, isCurrent, sessionCount, lastModified, sessions: [...] }]
  */
-export function groupWorkspaces(sessions, { currentCwd = "", sort = "recent", limit = 100 } = {}) {
+export function groupWorkspaces(sessions, { currentCwd = "", sort = "recent", limit = 100, sessionLimit = 50 } = {}) {
 	const byCwd = new Map();
 	for (const s of sessions ?? []) {
 		const cwd = s.cwd ? String(s.cwd) : "";
@@ -52,18 +53,21 @@ export function groupWorkspaces(sessions, { currentCwd = "", sort = "recent", li
 		if (!cwd) continue;
 		let ws = byCwd.get(cwd);
 		if (!ws) {
-			ws = { cwd, sessionCount: 0, lastModified: 0 };
+			ws = { cwd, sessionCount: 0, lastModified: 0, sessions: [] };
 			byCwd.set(cwd, ws);
 		}
 		ws.sessionCount++;
+		ws.sessions.push(s);
 		const t = s.modified ? new Date(s.modified).getTime() : 0;
 		if (Number.isFinite(t) && t > ws.lastModified) ws.lastModified = t;
 	}
 
+	const when = (s) => (s?.modified ? new Date(s.modified).getTime() || 0 : 0);
 	const list = [...byCwd.values()].map((ws) => ({
 		...ws,
 		name: workspaceName(ws.cwd),
 		isCurrent: ws.cwd === currentCwd,
+		sessions: [...ws.sessions].sort((a, b) => when(b) - when(a)).slice(0, sessionLimit),
 	}));
 
 	// the live workspace is always shown, even before its first session file
@@ -74,6 +78,7 @@ export function groupWorkspaces(sessions, { currentCwd = "", sort = "recent", li
 			isCurrent: true,
 			sessionCount: 0,
 			lastModified: 0,
+			sessions: [],
 		});
 	}
 

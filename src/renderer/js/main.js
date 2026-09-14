@@ -291,6 +291,7 @@ async function openWorkspacePickerModal() {
 		initialSort: workspaceSidebarGetSort(),
 		onSortChange: (mode) => workspaceSidebarSetSort(mode),
 		onPick: (ws) => switchToWorkspace(ws.cwd),
+		onPickSession: (ws, session) => openSessionInWorkspace(ws.cwd, session),
 		onNew: () => newWorkspace(),
 	});
 }

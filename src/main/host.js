@@ -980,10 +980,20 @@ export class AgentHost {
 			// --- workspaces (a workspace is a directory / agent cwd) ---
 			case "workspaces.list": {
 				const sessions = await SessionManager.listAll();
-				return groupWorkspaces(sessions, {
+				const currentFile = this.runtime?.session?.sessionFile ?? s?.sessionFile;
+				const grouped = groupWorkspaces(sessions, {
 					currentCwd: this.runtime?.cwd ?? "",
 					sort: params?.sort === "name" ? "name" : "recent",
 				});
+				// attach each workspace's recent sessions (enriched + current-flagged)
+				// so the startup picker can list them; the sidebar ignores this field
+				return grouped.map((w) => ({
+					...w,
+					sessions: (w.sessions ?? []).map((info) => ({
+						...this.#sessionInfoFor(info),
+						isCurrent: info.path === currentFile,
+					})),
+				}));
 			}
 			case "workspaces.delete": {
 				const cwd = params.cwd ? path.resolve(params.cwd) : "";

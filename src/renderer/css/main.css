@@ -286,6 +286,57 @@ body {
 	font-family: Consolas, monospace;
 }
 
+/* session sub-rows under a workspace in the startup picker (indented + compact) */
+.wsp-sess-row {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	padding: 2px 6px 2px 34px;
+	border-radius: 5px;
+	cursor: pointer;
+	border: 1px solid transparent;
+}
+
+.wsp-sess-row:hover {
+	background: var(--bg-alt);
+}
+
+.wsp-sess-row.selected {
+	background: var(--bg-alt);
+	border-color: var(--accent);
+}
+
+.wsp-bullet {
+	flex: 0 0 auto;
+	width: 12px;
+	text-align: center;
+	color: var(--muted);
+}
+
+.wsp-sess-row.is-current .wsp-bullet {
+	color: var(--accent);
+}
+
+.wsp-sess-row.is-current .wsp-sess-title {
+	color: var(--accent);
+	font-weight: 600;
+}
+
+.wsp-sess-title {
+	flex: 1 1 auto;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: calc(12px * var(--fs, 1.1429));
+}
+
+.wsp-sess-time {
+	flex: 0 0 auto;
+	color: var(--muted);
+	font-size: calc(11px * var(--fs, 1.1429));
+	white-space: nowrap;
+}
+
 .ws-pick-empty {
 	padding: 16px 8px;
 	color: var(--muted);

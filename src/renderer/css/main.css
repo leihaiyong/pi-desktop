@@ -2,6 +2,13 @@
 
 /* Light palette is the default; html[data-theme="dark"] overrides it. */
 
+/* The `hidden` attribute's UA rule (display:none) is overridden by any author
+   display value (e.g. #status-line { display:flex }); force it so toggling
+   .hidden actually hides the element. */
+[hidden] {
+	display: none !important;
+}
+
 :root,
 html[data-theme="light"] {
 	/* font scale over the 14px base the stylesheet was authored with.

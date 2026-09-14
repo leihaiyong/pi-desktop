@@ -577,6 +577,16 @@ function handleAgentEvent(event) {
 
 window.pi.on("agent:event", handleAgentEvent);
 
+// While a branch summary is running the main thread is blocked in navigateTree;
+// a normal keydown can't reach a focused control to cancel it. Allow Escape to
+// stop the summary, matching pi-tui where Escape aborts the branch summary.
+document.addEventListener("keydown", async (e) => {
+	if (e.key === "Escape" && state.summarizing) {
+		await window.pi.invoke("session.abortBranchSummary");
+		toast(t("app.branchSummaryAborted"), "warning");
+	}
+});
+
 // First-run “choose a workspace”: shown once, after the first live snapshot,
 // when the workspace wasn’t forced via --cwd/--session. It is triggered from
 // BOTH the host:ready push and init’s initial host.snapshot pull, because the

@@ -115,6 +115,7 @@ const IPC_CHANNELS = new Set([
 	"session.bash.record",
 	"session.navigateTree",
 	"session.forkMessages",
+	"session.abortBranchSummary",
 	"session.new",
 	"session.resume",
 	"session.fork",
@@ -848,6 +849,10 @@ export class AgentHost {
 				});
 			case "session.forkMessages":
 				return s.getUserMessagesForForking();
+			case "session.abortBranchSummary":
+				// Stop an in-flight branch summary (tree navigate chose Summarize)
+				s.abortBranchSummary();
+				return { ok: true };
 
 			// --- session lifecycle ---
 			case "session.new": {

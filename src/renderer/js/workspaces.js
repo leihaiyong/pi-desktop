@@ -17,6 +17,7 @@
 import { formatTimestamp } from "../../shared/format.js";
 import { t } from "../../shared/i18n.js";
 import { sortWorkspaces, WORKSPACE_SORTS } from "../../shared/workspaces.js";
+import { buildSessionForest, flattenSessionForest, sessionLabel } from "../../shared/session-tree.js";
 import { openConfirmDialog } from "./modals.js";
 
 const invoke = (channel, params) => window.pi.invoke(channel, params ?? {});
@@ -278,17 +279,19 @@ function renderSessions(ws) {
 		wrap.appendChild(d);
 		return wrap;
 	}
-	for (const s of sessions) {
-		wrap.appendChild(renderSessionRow(ws, s));
+	const flat = flattenSessionForest(buildSessionForest(sessions));
+	for (const { session, depth } of flat) {
+		wrap.appendChild(renderSessionRow(ws, session, depth));
 	}
 	return wrap;
 }
 
-function renderSessionRow(ws, s) {
+function renderSessionRow(ws, s, depth = 0) {
 	const row = document.createElement("div");
 	row.className = "ws-sess-row" + (s.isCurrent ? " is-current" : "");
-	const firstMsg = (s.title ?? "").trim().split(/\r?\n/)[0] ?? "";
-	const label = s.name ? `★ ${s.name}` : firstMsg ? firstMsg.slice(0, 100) : s.path.split(/[\\/]/).pop();
+	// tree indentation for forked (child) sessions
+	if (depth > 0) row.style.paddingLeft = `${6 + depth * 12}px`;
+	const label = sessionLabel(s);
 
 	const name = document.createElement("span");
 	name.className = "ws-sess-name";
@@ -311,8 +314,7 @@ function renderSessionRow(ws, s) {
 		del.addEventListener("click", async (e) => {
 			e.stopPropagation();
 			if (busy) return;
-			const firstMsg = (s.title ?? "").trim().split(/\r?\n/)[0] ?? "";
-			const label = s.name || firstMsg.slice(0, 100) || s.path.split(/[\\/]/).pop();
+			const label = sessionLabel(s);
 			const ok = await openConfirmDialog({
 				title: t("modal.deleteSession"),
 				message: t("ws.deleteSessionQ", { name: label }),

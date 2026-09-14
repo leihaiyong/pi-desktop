@@ -1266,6 +1266,7 @@ export class AgentHost {
 			path: info.path,
 			cwd: info.cwd ?? "",
 			name: info.name,
+			parentSessionPath: info.parentSessionPath,
 			created: info.created,
 			updated: info.modified,
 			title: info.firstMessage,

@@ -2,6 +2,7 @@ import { escapeHtml } from "./markdown.js";
 import { formatTimestamp, formatTokens } from "../../shared/format.js";
 import { flattenTree, countBranches } from "../../shared/tree.js";
 import { sortWorkspaces, WORKSPACE_SORTS } from "../../shared/workspaces.js";
+import { buildSessionForest, flattenSessionForest, sessionLabel } from "../../shared/session-tree.js";
 import { comboLabel } from "../../shared/keys.js";
 import { t, tCmd, SUPPORTED_LANGUAGES } from "../../shared/i18n.js";
 import { upsertProvider, removeProvider, stripUndefined, updateCostFields } from "../../shared/model-config.js";
@@ -385,13 +386,15 @@ export function openWorkspacePicker({ workspaces, onPick, onPickSession, onNew, 
 	let sort = WORKSPACE_SORTS.includes(initialSort) ? initialSort : "recent";
 	const ordered = () => sortWorkspaces(workspaces ?? [], sort);
 	// Flat, navigable list: each workspace is a header row (picking it starts a
-	// new session there); its sessions are indented sub-rows (picking one opens
-	// that session). Replaces the old "always start a new session" behavior.
+	// new session there); its sessions are nested sub-rows shown as a tree
+	// (a session and its forked children — picking one opens that session).
+	// Replaces the old "always start a new session" behavior.
 	const buildItems = () => {
 		const items = [];
 		for (const ws of ordered()) {
 			items.push({ kind: "workspace", ws });
-			for (const s of ws.sessions ?? []) items.push({ kind: "session", ws, session: s });
+			const flat = flattenSessionForest(buildSessionForest(ws.sessions ?? []));
+			for (const { session, depth } of flat) items.push({ kind: "session", ws, session, depth });
 		}
 		return items;
 	};
@@ -463,12 +466,14 @@ export function openWorkspacePicker({ workspaces, onPick, onPickSession, onNew, 
 					} else {
 						row = document.createElement("div");
 						row.className = "wsp-sess-row" + (i === selected ? " selected" : "") + (it.session.isCurrent ? " is-current" : "");
+						// tree indentation for forked (child) sessions
+						row.style.paddingLeft = `${34 + (it.depth ?? 0) * 12}px`;
 						const bullet = document.createElement("span");
 						bullet.className = "wsp-bullet";
 						bullet.textContent = it.session.isCurrent ? "●" : "·";
 						const title = document.createElement("span");
 						title.className = "wsp-sess-title";
-						title.textContent = it.session.title || it.session.name || t("ws.noTitle");
+						title.textContent = sessionLabel(it.session);
 						const time = document.createElement("span");
 						time.className = "wsp-sess-time";
 						time.textContent = it.session.updated ? formatTimestamp(it.session.updated) : "";

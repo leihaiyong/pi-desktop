@@ -141,7 +141,7 @@ const MESSAGES = {
 
 		// ---- status line ----
 		"status.compacting": "compacting…",
-		"status.summarizing": "summarizing branch…",
+		"status.summarizing": "summarizing branch… (Esc to cancel)",
 		"status.working": "working…",
 		"status.retrying": "retrying (attempt {n})…",
 		"status.runningBash": "running bash…",
@@ -565,7 +565,7 @@ const MESSAGES = {
 
 		// ---- 状态行 ----
 		"status.compacting": "压缩中…",
-		"status.summarizing": "正在总结被放弃的分支…",
+		"status.summarizing": "正在总结被放弃的分支…（按 Esc 取消）",
 		"status.working": "工作中…",
 		"status.retrying": "重试中（第 {n} 次）…",
 		"status.runningBash": "运行 bash 中…",

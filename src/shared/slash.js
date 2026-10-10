@@ -30,6 +30,7 @@ export const BUILTIN_COMMANDS = [
 	{ name: "/debug", description: "Show system prompt and loaded resources" },
 	{ name: "/scoped-models", description: "Configure the Ctrl+P model cycle list" },
 	{ name: "/providers", description: "Custom providers (edit global models.json)" },
+	{ name: "/mcp", description: "MCP servers (edit mcp.json, global + project)" },
 	{ name: "/extensions", description: "Browse and manage extensions (enable / disable, open in file manager)" },
 	{ name: "/skills", description: "Browse and manage skills (enable / disable, open in file manager)" },
 	{ name: "/arminsayshi", description: "Easter egg" },

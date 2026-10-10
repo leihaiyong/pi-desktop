@@ -74,6 +74,8 @@ describe("command set", () => {
 			"/reload",
 			"/debug",
 			"/scoped-models",
+			"/providers",
+			"/mcp",
 			"/arminsayshi",
 			"/dementedelves",
 			"/quit",

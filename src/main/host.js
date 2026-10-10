@@ -21,6 +21,7 @@ import { shellConfigForPlatform } from "./platform.js";
 import { groupWorkspaces } from "../shared/workspaces.js";
 import { isValidRect, clampCrop } from "../shared/snip.js";
 import { parseModelsJson, serializeModelsJson } from "../shared/model-config.js";
+import { parseMcpJson, serializeMcpJson, isMcpOverrideValid } from "../shared/mcp-config.js";
 import { resourceTogglePattern, isPackageSource } from "../shared/resources.js";
 
 // Mirrors the SDK's getDefaultSessionDirPath encoding (the function is not
@@ -83,6 +84,25 @@ function readPackageMeta(dir) {
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
+// SDK-provided tools (built-ins + codemode/tool_search built-in extensions +
+// MCP resource tools). Everything else — extension tools and `mcp__*` tools —
+// is shown as custom in the UI.
+const BUILTIN_TOOLS = new Set([
+	"read",
+	"bash",
+	"powershell",
+	"edit",
+	"write",
+	"grep",
+	"find",
+	"ls",
+	"codemode",
+	"tool_search",
+	"list_mcp_resources",
+	"list_mcp_resource_templates",
+	"read_mcp_resource",
+]);
+
 // Cap for base64 file reads over IPC (image attachments only).
 const MAX_READ_BASE64_BYTES = 10 * 1024 * 1024;
 
@@ -144,6 +164,8 @@ const IPC_CHANNELS = new Set([
 	"models.apiKey.remove",
 	"models.config.read",
 	"models.config.save",
+	"mcp.read",
+	"mcp.save",
 	"resources.changelog",
 	"resources.get",
 	"resources.list",
@@ -528,7 +550,7 @@ export class AgentHost {
 			systemPrompt: session?.systemPrompt,
 			messages: session?.messages ?? [],
 			activeTools: session?.getActiveToolNames?.() ?? [],
-			tools: (session?.getAllTools?.() ?? []).map((t) => ({ name: t.name, description: t.description, isCustom: !["read", "bash", "powershell", "edit", "write", "grep", "find", "ls"].includes(t.name) })),
+			tools: (session?.getAllTools?.() ?? []).map((t) => ({ name: t.name, description: t.description, isCustom: !BUILTIN_TOOLS.has(t.name) })),
 			scopedModels: (session?.scopedModels ?? []).map((s) => ({ provider: s.model.provider, id: s.model.id, thinkingLevel: s.thinkingLevel })),
 			stats: session?.getSessionStats?.(),
 			contextUsage: session?.getContextUsage?.(),
@@ -1057,6 +1079,60 @@ export class AgentHost {
 				await mr.removeRuntimeApiKey(params.providerId);
 				await this.#afterAuthChange();
 				return { ok: true };
+
+			// --- MCP servers (mcp.json, user + project) ---
+			case "mcp.read": {
+				const readOne = (p) => {
+					let text = "";
+					try {
+						text = fs.readFileSync(p, "utf8");
+					} catch {
+						// file does not exist yet
+					}
+					return { path: p, ...parseMcpJson(text) };
+				};
+				const trusted = s.settingsManager.isProjectTrusted();
+				return {
+					user: readOne(path.join(getAgentDir(), "mcp.json")),
+					project: { ...readOne(path.join(rt.cwd, ".pi", "mcp.json")), trusted },
+				};
+			}
+			case "mcp.save": {
+				const servers = params.servers;
+				if (!servers || typeof servers !== "object" || Array.isArray(servers)) {
+					throw new Error(t("host.mcpServersInvalid"));
+				}
+				const scope = params.scope === "project" ? "project" : "user";
+				const trusted = s.settingsManager.isProjectTrusted();
+				if (scope === "project" && !trusted) {
+					throw new Error(t("host.mcpProjectNotTrusted"));
+				}
+				// a transport-less project entry is only valid as an override of a
+				// user-level server with the same name
+				if (scope === "project") {
+					let userServers = {};
+					try {
+						userServers = parseMcpJson(fs.readFileSync(path.join(getAgentDir(), "mcp.json"), "utf8")).servers;
+					} catch {
+						// no user-level config
+					}
+					for (const [name, server] of Object.entries(servers)) {
+						if (!isMcpOverrideValid(name, server, userServers)) {
+							throw new Error(t("host.mcpOverrideInvalid", { name }));
+						}
+					}
+				}
+				const p =
+					scope === "project"
+						? path.join(rt.cwd, ".pi", "mcp.json")
+						: path.join(getAgentDir(), "mcp.json");
+				fs.mkdirSync(path.dirname(p), { recursive: true });
+				fs.writeFileSync(p, serializeMcpJson(servers, params.autoEnableCodemode), "utf8");
+				// pick up the changed servers like the TUI's /reload does
+				await s.reload();
+				await this.sessionReplaced();
+				return { ok: true, path: p };
+			}
 
 			// --- custom providers (global models.json) ---
 			case "models.config.read": {

@@ -6,6 +6,15 @@ import { buildSessionForest, flattenSessionForest, sessionLabel } from "../../sh
 import { comboLabel } from "../../shared/keys.js";
 import { t, tCmd, SUPPORTED_LANGUAGES } from "../../shared/i18n.js";
 import { upsertProvider, removeProvider, stripUndefined, updateCostFields } from "../../shared/model-config.js";
+import {
+	MCP_EXPOSURES,
+	isValidServerName,
+	serverSummary,
+	serverToolCount,
+	upsertServer,
+	updateServer,
+	removeServer,
+} from "../../shared/mcp-config.js";
 
 /**
  * Modal framework + all TUI selector dialogs, re-implemented as web modals.
@@ -784,6 +793,7 @@ export function openSettings({
 	onLanguageChange,
 	appVersion,
 	onEditProviders,
+	onEditMcp,
 }) {
 	openModal({
 		title: t("settings.title"),
@@ -830,6 +840,14 @@ export function openSettings({
 			providersBtn.style.cssText = "background:var(--bg-alt);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 14px;cursor:pointer";
 			providersBtn.addEventListener("click", () => onEditProviders?.());
 			row(t("settings.providers"), providersBtn);
+
+			section(t("settings.mcp"));
+			const mcpBtn = document.createElement("button");
+			mcpBtn.textContent = t("modal.edit");
+			mcpBtn.style.cssText = "background:var(--bg-alt);border:1px solid var(--border);color:var(--fg);border-radius:6px;padding:6px 14px;cursor:pointer";
+			mcpBtn.addEventListener("click", () => onEditMcp?.());
+			row(t("settings.mcpServers"), mcpBtn);
+
 			row(
 				t("settings.defaultThinking"),
 				select(
@@ -1506,6 +1524,182 @@ function openProviderEditor({ path, providers, providerId, onSave }) {
 				bodyEl = body;
 				footerLeftEl = footerEl.querySelector(".mf-left");
 				renderProviderView();
+			},
+		});
+	};
+	show();
+}
+
+// ------------------------------------------------- MCP servers (mcp.json)
+
+/** List of MCP servers from both mcp.json scopes + entries to add new ones. */
+export function openMcpConfig({ user, project, toolNames = [], onSaved }) {
+	const userServers = user?.servers ?? {};
+	const projectServers = project?.servers ?? {};
+	const item = (scope, name, server) => ({
+		label: name,
+		sub: `${serverSummary(server)}${serverToolCount(toolNames, name) ? ` · ${t("modal.mcpToolsCount", { n: serverToolCount(toolNames, name) })}` : ""}`,
+		data: { scope, name },
+	});
+	const items = [
+		{ label: t("modal.mcpAddUser"), cls: "mi-add", data: { scope: "user", __new: true } },
+		...Object.keys(userServers).map((name) => item("user", name, userServers[name])),
+	];
+	if (project?.trusted) {
+		items.push(
+			{ label: t("modal.mcpProject"), disabled: true, data: { section: true } },
+			{ label: t("modal.mcpAddProject"), cls: "mi-add", data: { scope: "project", __new: true } },
+			...Object.keys(projectServers).map((name) => item("project", name, projectServers[name])),
+		);
+	}
+	openModal({
+		title: t("modal.mcpTitle"),
+		searchable: true,
+		items,
+		footer: user?.path ?? "",
+		onSelect: (entry) => {
+			openMcpServerEditor({
+				user,
+				project,
+				toolNames,
+				scope: entry.data.scope,
+				serverName: entry.data.__new ? undefined : entry.data.name,
+				onSaved,
+			});
+			return false;
+		},
+	});
+}
+
+/** Edit (or create) one MCP server entry in one mcp.json scope. */
+function openMcpServerEditor({ user, project, toolNames, scope, serverName, onSaved }) {
+	const servers = scope === "project" ? (project?.servers ?? {}) : (user?.servers ?? {});
+	const existing = serverName && servers[serverName] ? servers[serverName] : {};
+	const state = {
+		name: serverName && servers[serverName] ? serverName : "",
+		description: existing.description ?? "",
+		command: existing.command ?? "",
+		args: Array.isArray(existing.args) ? existing.args.join(" ") : "",
+		url: existing.url ?? "",
+		exposure: existing.exposure ?? "",
+		enabled: existing.enabled !== false,
+	};
+	let bodyEl;
+	let footerLeftEl;
+	let flashTimer;
+
+	const flash = (msg) => {
+		if (!footerLeftEl) return;
+		footerLeftEl.textContent = msg;
+		clearTimeout(flashTimer);
+		flashTimer = setTimeout(() => (footerLeftEl.textContent = ""), 4000);
+	};
+	// Re-open the list with the updated servers of this scope.
+	const backTo = (nextServers) =>
+		openMcpConfig({
+			user: scope === "project" ? user : { ...user, servers: nextServers },
+			project: scope === "project" ? { ...project, servers: nextServers } : project,
+			toolNames,
+			onSaved,
+		});
+
+	const renderView = () => {
+		bodyEl.innerHTML = "";
+		const nameInput = providerFormRow(bodyEl, t("modal.fieldServerName"), providerFormTextInput(state.name));
+		if (state.name) nameInput.disabled = true;
+		const descInput = providerFormRow(bodyEl, t("modal.fieldDescription"), providerFormTextInput(state.description));
+		const cmdInput = providerFormRow(bodyEl, t("modal.fieldCommand"), providerFormTextInput(state.command));
+		const argsInput = providerFormRow(bodyEl, t("modal.fieldArgs"), providerFormTextInput(state.args));
+		const urlInput = providerFormRow(bodyEl, t("modal.fieldUrl"), providerFormTextInput(state.url));
+		const exposureSel = providerFormRow(bodyEl, t("modal.fieldExposure"), document.createElement("select"));
+		exposureSel.style.cssText = FORM_INPUT_CSS;
+		for (const [val, label] of [["", t("modal.mcpExposureDefault")], ...MCP_EXPOSURES.map((x) => [x, x])]) {
+			const opt = document.createElement("option");
+			opt.value = val;
+			opt.textContent = label;
+			if (val === state.exposure) opt.selected = true;
+			exposureSel.appendChild(opt);
+		}
+		const enabledRow = document.createElement("div");
+		enabledRow.className = "setting-row";
+		const enabledLabel = document.createElement("span");
+		enabledLabel.textContent = t("modal.mcpEnabled");
+		enabledLabel.style.minWidth = "150px";
+		const enabledChk = document.createElement("input");
+		enabledChk.type = "checkbox";
+		enabledChk.checked = state.enabled;
+		enabledRow.append(enabledLabel, enabledChk);
+		bodyEl.appendChild(enabledRow);
+
+		const btns = document.createElement("div");
+		btns.style.display = "flex";
+		btns.style.gap = "8px";
+		btns.style.justifyContent = "flex-end";
+		btns.style.marginTop = "12px";
+		if (state.name) {
+			const delBtn = providerFormButton(t("modal.deleteMcpServer"));
+			delBtn.style.marginRight = "auto";
+			delBtn.addEventListener("click", async () => {
+				const ok = await openConfirmDialog({
+					title: t("modal.deleteMcpServer"),
+					message: t("modal.deleteMcpServerQ", { name: state.name }),
+				});
+				if (!ok) {
+					show();
+					return;
+				}
+				backTo(removeServer(servers, state.name));
+			});
+			btns.appendChild(delBtn);
+		}
+		const backBtn = providerFormButton(t("modal.back"));
+		backBtn.addEventListener("click", () => backTo(servers));
+		const saveBtn = providerFormButton(t("modal.save"), true);
+		saveBtn.addEventListener("click", async () => {
+			const name = nameInput.value.trim();
+			if (!name) return flash(t("modal.nameRequired"));
+			if (!isValidServerName(name)) return flash(t("modal.nameInvalid"));
+			const command = cmdInput.value.trim();
+			const url = urlInput.value.trim();
+			const argsRaw = argsInput.value.trim();
+			const isOverride = !command && !url;
+			if (isOverride && !(scope === "project" && (user?.servers ?? {})[name])) {
+				return flash(t("modal.mcpTransportRequired"));
+			}
+			if (state.name && state.name !== name && servers[name] !== undefined) {
+				return flash(t("modal.idTaken", { id: name }));
+			}
+			const draft = {
+				description: descInput.value.trim() || undefined,
+				command: command || undefined,
+				args: argsRaw ? argsRaw.split(/\s+/) : undefined,
+				url: url || undefined,
+				exposure: exposureSel.value || undefined,
+				enabled: enabledChk.checked ? undefined : false,
+			};
+			const next = state.name
+				? updateServer(servers, name, draft)
+				: upsertServer(servers, name, draft);
+			if ((await onSaved(scope, next)) !== false) backTo(next);
+			else show();
+		});
+		btns.append(backBtn, saveBtn);
+		bodyEl.appendChild(btns);
+	};
+
+	const show = () => {
+		openModal({
+			title: state.name
+				? t("modal.mcpServerEdit", { name: state.name })
+				: scope === "project"
+					? t("modal.mcpServerNewProject")
+					: t("modal.mcpServerNewUser"),
+			width: "wide",
+			footer: scope === "project" ? project?.path : user?.path,
+			renderBody: (body, { footerEl }) => {
+				bodyEl = body;
+				footerLeftEl = footerEl.querySelector(".mf-left");
+				renderView();
 			},
 		});
 	};

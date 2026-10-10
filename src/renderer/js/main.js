@@ -402,6 +402,7 @@ function updateFooter() {
 	const info = [];
 	if (snap.model) info.push(`${snap.model.provider}/${snap.model.id}`);
 	if (snap.thinkingLevel && snap.thinkingLevel !== "off") info.push(t("app.thinkShort", { level: snap.thinkingLevel }));
+	if (snap.activeTools?.includes("codemode")) info.push(t("app.codemodeActive"));
 	const ctx = formatContextUsage(snap.contextUsage);
 	if (ctx) info.push(ctx);
 	const stats = snap.stats;
@@ -487,6 +488,8 @@ function handleAgentEvent(event) {
 			updateFooter();
 			break;
 		case "agent_settled": {
+			// SDK 1.1+: `aborted` distinguishes a cancelled run from a finished one
+			if (event.aborted) toast(t("app.runAborted"), "warning");
 			// Guard against a stale snapshot: the request may have been in flight
 			// when a new prompt started, and applying it would drop the fresh
 			// messages from the transcript. Retry briefly if the reply lags.
@@ -881,6 +884,29 @@ async function openProvidersUI() {
 	});
 }
 
+/** MCP server (mcp.json) editor. Shared by /mcp and Settings. */
+async function openMcpUI() {
+	const cfg = (await invokeSafe("mcp.read", {})) ?? { user: { servers: {} }, project: { servers: {}, trusted: false } };
+	if (cfg.user?.error) toast(cfg.user.error, "warning");
+	if (cfg.project?.error) toast(cfg.project.error, "warning");
+	const toolNames = (state.snapshot?.tools ?? []).map((x) => x.name);
+	modals.openMcpConfig({
+		user: cfg.user ?? { path: "", servers: {} },
+		project: cfg.project ?? { path: "", servers: {}, trusted: false },
+		toolNames,
+		onSaved: async (scope, servers, autoEnableCodemode) => {
+			const res = await invokeSafe("mcp.save", { scope, servers, autoEnableCodemode });
+			if (res?.error) {
+				toast(res.error, "error");
+				return false;
+			}
+			toast(t("app.mcpSaved"), "success");
+			void refreshSnapshot(null);
+			return true;
+		},
+	});
+}
+
 /** Browse + manage extensions (/extensions) or skills (/skills). */
 function openResourceBrowserUI(kind) {
 	return (async () => {
@@ -1067,6 +1093,7 @@ async function runCommand(line) {
 				onLanguageChange: (lang) => void changeLanguage(lang),
 				appVersion: appInfo.appVersion,
 				onEditProviders: () => void openProvidersUI(),
+				onEditMcp: () => void openMcpUI(),
 			});
 			return true;
 		}
@@ -1227,6 +1254,10 @@ async function runCommand(line) {
 		}
 		case "/providers": {
 			await openProvidersUI();
+			return true;
+		}
+		case "/mcp": {
+			await openMcpUI();
 			return true;
 		}
 		case "/extensions":

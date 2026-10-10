@@ -742,6 +742,59 @@ describe("custom providers (models.json)", () => {
 	}, T);
 });
 
+describe("MCP servers (mcp.json)", () => {
+	// a stdio command that exits immediately: the MCP extension tries to
+	// connect and fails fast — enough to exercise the config round-trip
+	const flaky = { command: "node", args: ["-e", "process.exit(0)"] };
+
+	it("mcp.read reports empty configs at first", async () => {
+		const r = await ok("mcp.read");
+		expect(r.user.path).toBe(path.join(agentDir, "mcp.json"));
+		expect(r.user.servers).toEqual({});
+		expect(r.project.path).toBe(path.join(cwd, ".pi", "mcp.json"));
+		expect(r.project.servers).toEqual({});
+		expect(typeof r.project.trusted).toBe("boolean");
+	}, T);
+
+	it("mcp.save round-trips a user-scope servers map", async () => {
+		const r = await ok("mcp.save", {
+			scope: "user",
+			servers: { funcfs: { ...flaky, description: "d", exposure: "direct" } },
+		});
+		expect(r.ok).toBe(true);
+		expect(fs.existsSync(r.path)).toBe(true);
+		const back = await ok("mcp.read");
+		expect(back.user.servers.funcfs?.command).toBe("node");
+		expect(back.user.servers.funcfs?.exposure).toBe("direct");
+		// leave no configured server behind for later tests
+		await ok("mcp.save", { scope: "user", servers: {} });
+		expect((await ok("mcp.read")).user.servers).toEqual({});
+	}, T);
+
+	it("mcp.save rejects malformed payloads", async () => {
+		expect(await err("mcp.save", { servers: [] })).toBeTruthy();
+	}, T);
+
+	it("mcp.save project scope requires project trust", async () => {
+		const initial = (await ok("trust.get")).trusted;
+		try {
+			await ok("trust.set", { trusted: false });
+			expect(await err("mcp.save", { scope: "project", servers: { x: flaky } })).toBeTruthy();
+			await ok("trust.set", { trusted: true });
+			// a transport-less project entry is only valid as an override of a
+			// user-level server with the same name; no such server exists yet
+			expect(await err("mcp.save", { scope: "project", servers: { override: { enabled: false } } })).toBeTruthy();
+			// a full entry (with transport) is fine in a trusted project
+			const ok2 = await ok("mcp.save", { scope: "project", servers: { pproj: flaky } });
+			expect(ok2.ok).toBe(true);
+			expect(ok2.path).toBe(path.join(cwd, ".pi", "mcp.json"));
+			await ok("mcp.save", { scope: "project", servers: {} });
+		} finally {
+			await ok("trust.set", { trusted: initial });
+		}
+	}, T);
+});
+
 describe("themes", () => {
 	it("theme.list returns builtin + custom themes", async () => {
 		const list = await ok("theme.list");

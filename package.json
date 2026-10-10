@@ -23,8 +23,8 @@
 		"vendor:hljs": "esbuild node_modules/highlight.js/lib/index.js --bundle --format=iife --global-name=hljs --platform=browser --minify --outfile=src/renderer/vendor/highlight.js"
 	},
 	"dependencies": {
-		"@earendil-works/pi-ai": "^0.84.4",
-		"@earendil-works/pi-coding-agent": "^0.84.4",
+		"@earendil-works/pi-ai": "^1.1.0",
+		"@earendil-works/pi-coding-agent": "^1.1.0",
 		"marked": "15.0.12"
 	},
 	"devDependencies": {

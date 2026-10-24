@@ -2,6 +2,49 @@
 
 All notable changes to Pi Desktop are documented here.
 
+## [0.6.0] — 2026-10-24
+
+### Added
+
+- **MCP server management** — a `/mcp` command and a Settings entry manage
+  servers in the global and project `mcp.json`: stdio/HTTP transports, tool
+  exposure, enable/disable, and transport-less project overrides of global
+  servers; saving reloads the session so changes apply immediately, and the
+  server list shows each server’s tool count
+- **MCP servers in the Session menu** — the “MCP Servers…” menu item opens
+  the same manager without typing `/mcp`
+- **Per-server browse** — the server editor’s “Browse…” lists one server’s
+  tools (name + description), resources, and resource templates. Clicking a
+  tool shows its parameter schema; clicking a resource reads its content in
+  place (text is shown truncated at ~100 KB, binary resources show their type
+  and size). Descriptions wrap onto multiple lines, left-aligned
+- **Codemode support** — `codemode`, `tool_search` and the MCP resource tools
+  are recognized as built-ins (no longer flagged custom in the tool list),
+  and the footer shows a codemode badge while the tool is active
+- **Aborted-run feedback** — a “Run aborted” toast distinguishes cancelled
+  runs from finished ones (SDK 1.1 `agent_settled.aborted`)
+- **pi SDK 1.1.0** — codemode / MCP, image generation, 1.x release line
+
+### Fixed
+
+- **MCP servers now actually connect** — desktop sessions load the CLI’s
+  builtin codemode / tool-search / MCP extensions (the SDK does not load them
+  by default). Before this, `mcp.json` servers were never connected, so their
+  tools were unavailable to the model and the MCP browser / tool counts were
+  always empty
+- MCP browser: closing with Esc or ✕ returns to the server editor instead of
+  dismissing the whole dialog (a modal closed before its `onClose` callback
+  could re-open the previous view)
+- MCP browser: long tool descriptions no longer squeeze the tool name out of
+  the row (rows are now two-line: name on top, wrapped description below)
+
+### Quality
+
+- End-to-end functional test for MCP browsing: a minimal real stdio MCP
+  server (1 tool + 1 resource + 1 template) is started, connected, and its
+  tools / resources / templates are verified through the real IPC path
+  (290 test cases total)
+
 ## [0.5.0] — 2026-09-14
 
 ### Added

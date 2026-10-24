@@ -831,6 +831,7 @@ const menuHandlers = {
 	"menu:settings": () => runCommand("/settings"),
 	"menu:extensions": () => runCommand("/extensions"),
 	"menu:skills": () => runCommand("/skills"),
+	"menu:mcp": () => openMcpUI(),
 	"menu:export-html": () => runCommand("/export"),
 	"menu:export-jsonl": async () => {
 		// pick a directory to export into; cancel = no export

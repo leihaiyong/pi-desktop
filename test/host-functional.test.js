@@ -742,11 +742,40 @@ describe("custom providers (models.json)", () => {
 	}, T);
 });
 
-describe("MCP servers (mcp.json)", () => {
-	// a stdio command that exits immediately: the MCP extension tries to
-	// connect and fails fast — enough to exercise the config round-trip
-	const flaky = { command: "node", args: ["-e", "process.exit(0)"] };
+// a stdio command that exits immediately: the MCP extension tries to
+// connect and fails fast — enough to exercise the config round-trip
+const flaky = { command: "node", args: ["-e", "process.exit(0)"] };
 
+// a minimal MCP stdio server (newline-delimited JSON-RPC) offering one tool,
+// one resource and one resource template
+const MCP_SERVER_SRC = String.raw`
+import process from "node:process";
+import readline from "node:readline";
+const rl = readline.createInterface({ input: process.stdin });
+const reply = (id, result) => process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n");
+rl.on("line", (line) => {
+	const msg = JSON.parse(line);
+	if (msg.method === "initialize") {
+		reply(msg.id, {
+			protocolVersion: msg.params?.protocolVersion ?? "2025-03-26",
+			capabilities: { tools: {}, resources: {} },
+			serverInfo: { name: "func-mcp", version: "1.0.0" },
+		});
+	} else if (msg.method === "tools/list") {
+		reply(msg.id, { tools: [{ name: "hello", description: "says hello", inputSchema: { type: "object", properties: {} } }] });
+	} else if (msg.method === "resources/list") {
+		reply(msg.id, { resources: [{ uri: "demo:hello", name: "hello", description: "a demo resource", mimeType: "text/plain" }] });
+	} else if (msg.method === "resources/templates/list") {
+		reply(msg.id, { resourceTemplates: [{ uriTemplate: "demo:msg/{id}", name: "msg", mimeType: "text/plain" }] });
+	} else if (msg.method === "resources/read") {
+		reply(msg.id, { contents: [{ uri: "demo:hello", mimeType: "text/plain", text: "hello world" }] });
+	} else if (msg.method === "ping") {
+		reply(msg.id, {});
+	}
+});
+`;
+
+describe("MCP servers (mcp.json)", () => {
 	it("mcp.read reports empty configs at first", async () => {
 		const r = await ok("mcp.read");
 		expect(r.user.path).toBe(path.join(agentDir, "mcp.json"));
@@ -793,6 +822,59 @@ describe("MCP servers (mcp.json)", () => {
 			await ok("trust.set", { trusted: initial });
 		}
 	}, T);
+});
+
+describe("MCP browse (tools / resources)", () => {
+	it("mcp.tools requires a server name", async () => {
+		expect(await err("mcp.tools", {})).toBeTruthy();
+	}, T);
+
+	it("mcp.tools lists the tools of a failing server as none", async () => {
+		// the flaky stdio command exits immediately, so the connection fails
+		// and no mcp__funcbrowse__* tool is registered
+		await ok("mcp.save", { scope: "user", servers: { funcbrowse: { ...flaky } } });
+		const r = await ok("mcp.tools", { server: "funcbrowse" });
+		expect(r.server).toBe("funcbrowse");
+		expect(r.tools).toEqual([]);
+		await ok("mcp.save", { scope: "user", servers: {} });
+	}, T);
+
+	it("mcp.resources returns empty listings without connected resource servers", async () => {
+		const r = await ok("mcp.resources", { server: "nope" });
+		expect(r.server).toBe("nope");
+		expect(r.resources).toEqual([]);
+		expect(r.resourceTemplates).toEqual([]);
+	}, T);
+
+	it("mcp.readResource validates params", async () => {
+		expect(await err("mcp.readResource", { server: "x", uri: "" })).toBeTruthy();
+		expect(await err("mcp.readResource", {})).toBeTruthy();
+	}, T);
+});
+
+describe("MCP browse with a live stdio server", () => {
+	it("lists tools, resources and templates of a connected server", async () => {
+		const serverPath = path.join(tmp, "mcp-func-server.mjs");
+		fs.writeFileSync(serverPath, MCP_SERVER_SRC);
+		await ok("mcp.save", { scope: "user", servers: { funcmcp: { command: "node", args: [serverPath], exposure: "direct" } } });
+		// the connection runs in the background; wait until its tools are registered
+		let tools = [];
+		const deadline = Date.now() + 30_000;
+		while (Date.now() < deadline) {
+			tools = (await ok("mcp.tools", { server: "funcmcp" })).tools;
+			if (tools.length > 0) break;
+			await new Promise((r) => setTimeout(r, 500));
+		}
+		expect(tools.map((x) => x.name)).toEqual(["hello"]);
+		expect(tools[0].description).toBe("says hello");
+		const res = await ok("mcp.resources", { server: "funcmcp" });
+		expect(res.resources.map((r) => r.uri)).toEqual(["demo:hello"]);
+		expect(res.resourceTemplates.map((r) => r.uriTemplate)).toEqual(["demo:msg/{id}"]);
+		const read = await ok("mcp.readResource", { server: "funcmcp", uri: "demo:hello" });
+		expect(read.contents[0].text).toBe("hello world");
+		// leave no configured server behind for later tests
+		await ok("mcp.save", { scope: "user", servers: {} });
+	}, 90_000);
 });
 
 describe("themes", () => {

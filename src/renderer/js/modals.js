@@ -135,8 +135,10 @@ function openModal({
 	}
 
 	function close() {
-		if (onClose) onClose();
+		// Close the DOM first: onClose may re-open a modal (e.g. the MCP
+		// browser returns to its editor), and closeTop() must not wipe it.
 		closeTop();
+		if (onClose) onClose();
 	}
 
 	function move(delta) {
@@ -1654,6 +1656,11 @@ function openMcpServerEditor({ user, project, toolNames, scope, serverName, onSa
 		}
 		const backBtn = providerFormButton(t("modal.back"));
 		backBtn.addEventListener("click", () => backTo(servers));
+		let browseBtn = null;
+		if (state.name && servers[state.name]) {
+			browseBtn = providerFormButton(t("modal.mcpBrowse"));
+			browseBtn.addEventListener("click", () => openMcpBrowser({ name: state.name, onBack: show }));
+		}
 		const saveBtn = providerFormButton(t("modal.save"), true);
 		saveBtn.addEventListener("click", async () => {
 			const name = nameInput.value.trim();
@@ -1683,7 +1690,7 @@ function openMcpServerEditor({ user, project, toolNames, scope, serverName, onSa
 			if ((await onSaved(scope, next)) !== false) backTo(next);
 			else show();
 		});
-		btns.append(backBtn, saveBtn);
+		btns.append(backBtn, browseBtn, saveBtn);
 		bodyEl.appendChild(btns);
 	};
 
@@ -1704,6 +1711,176 @@ function openMcpServerEditor({ user, project, toolNames, scope, serverName, onSa
 		});
 	};
 	show();
+}
+
+// ------------------------------------------------- MCP server browse (tools / resources)
+
+const MCP_BROWSE_MAX_CHARS = 100000;
+
+/** Browse the tools, resources and resource templates of one connected MCP
+ *  server. `onBack` re-opens the calling view (the server editor) when the
+ *  browse modal closes. */
+export function openMcpBrowser({ name, onBack }) {
+	let bodyEl;
+	let data = null; // { tools, resources, templates, error }
+	let token = 0; // invalidates in-flight loads/reads after view switches
+
+	const sectionTitle = (text) => {
+		const el = document.createElement("div");
+		el.className = "section-title";
+		el.textContent = text;
+		return el;
+	};
+
+	const itemRow = (label, sub, onClick) => {
+		const row = document.createElement("div");
+		row.className = "modal-item";
+		row.innerHTML = `<span class="mi-main"></span><span class="mi-sub"></span>`;
+		row.querySelector(".mi-main").textContent = label;
+		row.querySelector(".mi-sub").textContent = sub ?? "";
+		if (onClick) {
+			row.style.cursor = "pointer";
+			row.addEventListener("click", onClick);
+		}
+		return row;
+	};
+
+	/** Two-line row (stacked style): name on line 1, description wrapped below. */
+	const stackedRow = (label, detail, onClick) => {
+		const row = document.createElement("div");
+		row.className = "modal-item stacked";
+		row.innerHTML = `<div class="mi-l1"><span class="mi-main"></span><span class="mi-meta"></span></div><div class="mi-detail"></div>`;
+		row.querySelector(".mi-main").textContent = label;
+		row.querySelector(".mi-detail").textContent = detail ?? "";
+		if (onClick) {
+			row.style.cursor = "pointer";
+			row.addEventListener("click", onClick);
+		}
+		return row;
+	};
+
+	const hintText = (text) => {
+		const row = document.createElement("div");
+		row.className = "modal-item";
+		row.innerHTML = `<span class="mi-sub"></span>`;
+		row.querySelector(".mi-sub").textContent = text;
+		return row;
+	};
+
+	/** Read-only detail view (one text block + back button) inside this modal. */
+	const detailView = (title, text) => {
+		bodyEl.innerHTML = "";
+		const top = document.createElement("div");
+		top.style.display = "flex";
+		top.style.gap = "8px";
+		top.style.alignItems = "center";
+		top.style.marginTop = "4px";
+		const backBtn = providerFormButton(t("modal.mcpBackToList"));
+		backBtn.addEventListener("click", renderList);
+		const titleEl = sectionTitle(title);
+		titleEl.style.margin = "0";
+		top.append(backBtn, titleEl);
+		const pre = document.createElement("pre");
+		pre.textContent = text;
+		bodyEl.append(top, pre);
+	};
+
+	const resourceSub = (item) =>
+		[item.name, item.description, item.mimeType, item.size != null ? `${item.size} B` : ""].filter(Boolean).join(" · ");
+
+	const renderList = () => {
+		bodyEl.innerHTML = "";
+		if (!data) {
+			bodyEl.textContent = t("modal.mcpLoading");
+			return;
+		}
+		bodyEl.appendChild(sectionTitle(t("modal.mcpToolsSection", { n: data.tools.length })));
+		if (data.tools.length === 0) {
+			bodyEl.appendChild(hintText(t("modal.mcpNoToolsHint")));
+		} else {
+			for (const tool of data.tools) {
+				bodyEl.appendChild(
+					stackedRow(tool.name, tool.description, () => {
+						const params = tool.parameters
+							? `\n\n${t("modal.mcpParams")}:\n${JSON.stringify(tool.parameters, null, 2)}`
+							: "";
+						detailView(tool.name, (tool.description ?? "") + params);
+					}),
+				);
+			}
+		}
+		bodyEl.appendChild(sectionTitle(t("modal.mcpResourcesSection", { n: data.resources.length })));
+		if (data.error) bodyEl.appendChild(hintText(data.error));
+		if (data.resources.length === 0 && !data.error) bodyEl.appendChild(hintText("—"));
+		for (const resource of data.resources) {
+			bodyEl.appendChild(itemRow(resource.uri, resourceSub(resource), () => readResource(resource.uri)));
+		}
+		bodyEl.appendChild(sectionTitle(t("modal.mcpTemplatesSection", { n: data.templates.length })));
+		if (data.templates.length === 0) {
+			bodyEl.appendChild(hintText("—"));
+		} else {
+			for (const template of data.templates) {
+				bodyEl.appendChild(itemRow(template.uriTemplate, resourceSub(template)));
+			}
+		}
+	};
+
+	const readResource = async (uri) => {
+		const my = ++token;
+		detailView(uri, t("modal.mcpLoading"));
+		try {
+			const res = await window.pi.invoke("mcp.readResource", { server: name, uri });
+			if (my !== token || !bodyEl) return;
+			const parts = [];
+			for (const content of res.contents ?? []) {
+				if (typeof content.text === "string") {
+					parts.push(content.text);
+				} else if (typeof content.blob === "string") {
+					parts.push(t("modal.mcpBlob", { mime: content.mimeType ?? "application/octet-stream", n: Math.round((content.blob.length * 3) / 4) }));
+				}
+			}
+			let text = parts.join("\n\n") || t("modal.mcpEmpty");
+			if (text.length > MCP_BROWSE_MAX_CHARS) {
+				text = `${text.slice(0, MCP_BROWSE_MAX_CHARS)}\n${t("modal.mcpContentTruncated", { n: MCP_BROWSE_MAX_CHARS })}`;
+			}
+			detailView(uri, text);
+		} catch (error) {
+			if (my !== token || !bodyEl) return;
+			detailView(uri, error.message ?? String(error));
+		}
+	};
+
+	const load = async () => {
+		const my = token;
+		try {
+			const [toolsRes, resRes] = await Promise.all([
+				window.pi.invoke("mcp.tools", { server: name }),
+				window.pi.invoke("mcp.resources", { server: name }),
+			]);
+			if (my !== token || !bodyEl) return;
+			data = {
+				tools: toolsRes?.tools ?? [],
+				resources: resRes?.resources ?? [],
+				templates: resRes?.resourceTemplates ?? [],
+				error: resRes?.error,
+			};
+			renderList();
+		} catch (error) {
+			if (my !== token || !bodyEl) return;
+			bodyEl.textContent = error.message ?? String(error);
+		}
+	};
+
+	openModal({
+		title: t("modal.mcpBrowserTitle", { name }),
+		width: "wide",
+		footer: t("modal.escClose"),
+		onClose: onBack,
+		renderBody: (body) => {
+			bodyEl = body;
+			void load();
+		},
+	});
 }
 
 export function openHotkeysModal({ bindings, platform }) {

@@ -11,6 +11,9 @@ import {
 	createAgentSessionFromServices,
 	createAgentSessionRuntime,
 	createAgentSessionServices,
+	createCodemodeExtension,
+	createMcpExtension,
+	createToolSearchExtension,
 	getAgentDir,
 	getPackageDir,
 	resolveModelScopeWithDiagnostics,
@@ -21,7 +24,7 @@ import { shellConfigForPlatform } from "./platform.js";
 import { groupWorkspaces } from "../shared/workspaces.js";
 import { isValidRect, clampCrop } from "../shared/snip.js";
 import { parseModelsJson, serializeModelsJson } from "../shared/model-config.js";
-import { parseMcpJson, serializeMcpJson, isMcpOverrideValid } from "../shared/mcp-config.js";
+import { parseMcpJson, serializeMcpJson, isMcpOverrideValid, mcpServerKey } from "../shared/mcp-config.js";
 import { resourceTogglePattern, isPackageSource } from "../shared/resources.js";
 
 // Mirrors the SDK's getDefaultSessionDirPath encoding (the function is not
@@ -81,6 +84,15 @@ function readPackageMeta(dir) {
 		return {};
 	}
 }
+
+// SDK sessions do not load the CLI's built-in extensions; opt into the ones
+// the desktop needs (mirrors the CLI's builtInExtensions list). `builtin: true`
+// keeps the user's `extensions` setting authoritative (e.g. `-builtin:mcp`).
+const BUILTIN_EXTENSION_FACTORIES = [
+	{ name: "codemode", factory: createCodemodeExtension(), replaceable: true, builtin: true },
+	{ name: "tool-search", factory: createToolSearchExtension(), replaceable: true, builtin: true },
+	{ name: "mcp", factory: createMcpExtension(), replaceable: true, builtin: true },
+];
 
 const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
@@ -166,6 +178,9 @@ const IPC_CHANNELS = new Set([
 	"models.config.save",
 	"mcp.read",
 	"mcp.save",
+	"mcp.tools",
+	"mcp.resources",
+	"mcp.readResource",
 	"resources.changelog",
 	"resources.get",
 	"resources.list",
@@ -315,6 +330,7 @@ export class AgentHost {
 		const initialServices = await createAgentSessionServices({
 			cwd,
 			modelRuntime: this.#modelRuntime,
+			resourceLoaderOptions: { extensionFactories: BUILTIN_EXTENSION_FACTORIES },
 		});
 
 		const factory = async ({ cwd: nextCwd, agentDir, sessionManager, sessionStartEvent, projectTrustContext }) => {
@@ -322,6 +338,7 @@ export class AgentHost {
 				cwd: nextCwd,
 				agentDir,
 				modelRuntime: this.#modelRuntime,
+				resourceLoaderOptions: { extensionFactories: BUILTIN_EXTENSION_FACTORIES },
 			});
 			const result = await createAgentSessionFromServices({
 				services,
@@ -1132,6 +1149,64 @@ export class AgentHost {
 				await s.reload();
 				await this.sessionReplaced();
 				return { ok: true, path: p };
+			}
+
+			// --- MCP browse: tools / resources of one connected server ---
+			case "mcp.tools": {
+				const name = typeof params.server === "string" ? params.server.trim() : "";
+				if (!name) throw new Error(t("host.mcpServerRequired"));
+				const prefix = `mcp__${mcpServerKey(name)}__`;
+				return {
+					server: name,
+					tools: s
+						.getAllTools()
+						.filter((tool) => tool.name.startsWith(prefix))
+						.map((tool) => ({
+							name: tool.name.slice(prefix.length),
+							description: tool.description ?? "",
+							exposure: tool.exposure,
+							annotations: tool.annotations ?? {},
+							parameters: tool.parameters,
+						})),
+				};
+			}
+			case "mcp.resources": {
+				const name = typeof params.server === "string" ? params.server.trim() : "";
+				if (!name) throw new Error(t("host.mcpServerRequired"));
+				// Run the read-only resource tools registered by the MCP extension
+				// directly (no model turn); a server without resources rejects.
+				const list = async (toolName, key) => {
+					const def = s.getToolDefinition(toolName);
+					if (!def) return { items: [], error: undefined };
+					try {
+						const result = await def.execute(`ui-${Date.now()}`, { server: name }, new AbortController().signal, undefined, undefined);
+						const payload = result?.structuredContent;
+						return { items: Array.isArray(payload?.[key]) ? payload[key] : [], error: undefined };
+					} catch (error) {
+						return { items: [], error: error instanceof Error ? error.message : String(error) };
+					}
+				};
+				const [resources, templates] = await Promise.all([
+					list("list_mcp_resources", "resources"),
+						list("list_mcp_resource_templates", "resourceTemplates"),
+				]);
+				return {
+					server: name,
+					resources: resources.items,
+					resourceTemplates: templates.items,
+					error: resources.error ?? templates.error,
+				};
+			}
+			case "mcp.readResource": {
+				const name = typeof params.server === "string" ? params.server.trim() : "";
+				const uri = typeof params.uri === "string" ? params.uri.trim() : "";
+				if (!name) throw new Error(t("host.mcpServerRequired"));
+				if (!uri) throw new Error(t("host.mcpUriRequired"));
+				const def = s.getToolDefinition("read_mcp_resource");
+				if (!def) throw new Error(t("host.mcpNoResources"));
+				const result = await def.execute(`ui-${Date.now()}`, { server: name, uri }, new AbortController().signal, undefined, undefined);
+				const payload = result?.structuredContent ?? {};
+				return { server: name, uri, contents: Array.isArray(payload.contents) ? payload.contents : [] };
 			}
 
 			// --- custom providers (global models.json) ---

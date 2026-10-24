@@ -157,6 +157,7 @@ function buildMenu() {
 				{ type: "separator" },
 				{ label: t("menu.extensions"), click: send("menu:extensions") },
 				{ label: t("menu.skills"), click: send("menu:skills") },
+				{ label: t("menu.mcp"), click: send("menu:mcp") },
 			],
 		},
 		{
